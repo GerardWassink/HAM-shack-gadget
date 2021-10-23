@@ -8,8 +8,10 @@
  *   0.2  : Cleaned op the code
  *          built in backlight switch (on / off)
  *          built in UTC / QTH switch
+ *   0.3  : Switched over to Nano RP2040 Connect
+ *          Somehow had to switch from pin D3 to D5
  * ------------------------------------------------------------------------- */
-#define progVersion "0.2"                   // Program version definition
+#define progVersion "0.3"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -45,7 +47,7 @@
  *       Definitions
  * ------------------------------------------------------------------------- */
 #define ONE_WIRE_BUS    2                   // Data wire plugged into pin 2
-#define PIN_BACKLIGHT   3                   // Pin switch backlight on / off
+#define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
 #define PIN_UTC_QTH     4                   // Pin switch UTC and QTH time
                                             
 /* ------------------------------------------------------------------------- *
@@ -167,12 +169,17 @@ void timeSelect() {
  * ------------------------------------------------------------------------- */
 void switchBacklights() {
   boolBacklight = digitalRead(PIN_BACKLIGHT);
+  
   if (boolBacklight == 1) {
-    lcd1.noDisplay(); lcd1.noBacklight();
-    lcd2.noDisplay(); lcd2.noBacklight();
+    lcd1.noDisplay(); 
+    lcd1.noBacklight();
+    lcd2.noDisplay(); 
+    lcd2.noBacklight();
   } else {
-    lcd1.display(); lcd1.backlight();
-    lcd2.display(); lcd2.backlight();
+    lcd1.display(); 
+    lcd1.backlight();
+    lcd2.display(); 
+    lcd2.backlight();
   }
 }
   

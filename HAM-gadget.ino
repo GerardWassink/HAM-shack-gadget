@@ -13,10 +13,11 @@
  *   0.4  : Switched Back to Velleman Uno, the library did not work
  *            on the new architecture
  *   0.5    Built in the Velleman library VMA430_GPS
- *          Dat and time now showing as UTC time from Satellite
- *          Latitude and Longitude als showing from Satellite
+ *          Date and time now showing as UTC time from Satellite
+ *          Latitude and Longitude also showing from Satellite
+ *   0.6    Small corrections (Rxpin and TXpin switched
  * ------------------------------------------------------------------------- */
-#define progVersion "0.5"                   // Program version definition
+#define progVersion "0.6"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -53,8 +54,8 @@
 /* ------------------------------------------------------------------------- *
  *       Pin definitions
  * ------------------------------------------------------------------------- */
-#define TXpin           2                   // TX pin to GPS
-#define RXpin           3                   // RX pin from GPS
+#define RXpin           2                   // TX pin to GPS
+#define TXpin           3                   // RX pin from GPS
 #define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
 #define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
 #define PIN_UTC_QTH     6                   // Pin switch UTC and QTH time
@@ -84,7 +85,7 @@ LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
 /* ------------------------------------------------------------------------- *
  *       Create objects for GPS module
  * ------------------------------------------------------------------------- */
-SoftwareSerial ss(RXpin, TXpin);            // RX, TX
+SoftwareSerial ss(TXpin, RXpin);            // TX, RX
 VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to 
                                             //   GPS module library
 
@@ -155,12 +156,22 @@ void loop()
  *       Routine to display stuff on the display of choice     LCD_display()
  * ------------------------------------------------------------------------- */
 void requestGPS() {
+
+#ifdef DEBUG
+  Serial.println("Requesting GPS data:");
+#endif
+
   if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
   {
     gps.parse_ubx_data();                   // Parse new GPS data
     
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
+
+#ifdef DEBUG
+  Serial.println("time received successfully");
+#endif
+
       
       /* 
        * Form UTC date from GPS 
@@ -305,6 +316,14 @@ void switchBacklights() {
  * ------------------------------------------------------------------------- */
 void setup()
 {
+  /* 
+   * Initialize pins
+   */
+#ifdef DEBUG
+  Serial.begin(9600);
+  Serial.println("HAM gadget debugging start");
+#endif
+  
   /* 
    * Initialize pins
    */

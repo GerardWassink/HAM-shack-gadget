@@ -10,8 +10,13 @@
  *          built in UTC / QTH switch
  *   0.3  : Switched over to Nano RP2040 Connect
  *          Somehow had to switch from pin D3 to D5
+ *   0.4  : Switched Back to Velleman Uno, the library did not work
+ *            on the new architecture
+ *   0.5    Built in the Velleman library VMA430_GPS
+ *          Dat and time now showing as UTC time from Satellite
+ *          Latitude and Longitude als showing from Satellite
  * ------------------------------------------------------------------------- */
-#define progVersion "0.3"                   // Program version definition
+#define progVersion "0.5"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -42,14 +47,28 @@
 #include <Wire.h>                           // I2C comms library
 #include <LiquidCrystal_I2C.h>              // LCD library
 
+#include <VMA430_GPS.h>                     // GPS module library
+#include <SoftwareSerial.h>                 // Software serial library
 
 /* ------------------------------------------------------------------------- *
- *       Definitions
+ *       Pin definitions
  * ------------------------------------------------------------------------- */
-#define ONE_WIRE_BUS    2                   // Data wire plugged into pin 2
+#define TXpin           2                   // TX pin to GPS
+#define RXpin           3                   // RX pin from GPS
+#define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
 #define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
-#define PIN_UTC_QTH     4                   // Pin switch UTC and QTH time
-                                            
+#define PIN_UTC_QTH     6                   // Pin switch UTC and QTH time
+
+/* ------------------------------------------------------------------------- *
+ *       Debugging switch
+ * ------------------------------------------------------------------------- */
+//#define DEBUG                               // To debug or not to debug?
+
+/* ------------------------------------------------------------------------- *
+ *       Other definitions
+ * ------------------------------------------------------------------------- */
+#define GPSbaud 9600                        // Baud rate to/from GPS
+
 /* ------------------------------------------------------------------------- *
  *       Create objects for sensors
  * ------------------------------------------------------------------------- */
@@ -63,13 +82,28 @@ LiquidCrystal_I2C lcd1(0x27,20,4);          // Initialize display 1
 LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
 
 /* ------------------------------------------------------------------------- *
+ *       Create objects for GPS module
+ * ------------------------------------------------------------------------- */
+SoftwareSerial ss(RXpin, TXpin);            // RX, TX
+VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to 
+                                            //   GPS module library
+
+/* ------------------------------------------------------------------------- *
  *       Define global variables
  * ------------------------------------------------------------------------- */
   float temp1, temp2;                       // Temperatures read from sensors
   bool boolTimeSwitch;                      // Indicate UTC 0) or QTH (1) time
   bool boolBacklight;                       // Indicate backlight on / off
 
+  String GPSdate;                           // Date from GPS
+  String GPStime;                           // Time from GPS
 
+  float GPS_latitude;                        // Latitude from GPS
+  float GPS_longitude;                       // Longitude from GPS
+  
+  long previousMillis = 30000;              // last time temps were requested
+  long interval = 30000;                    // time between temp requests
+  
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
  * ------------------------------------------------------------------------- */
@@ -85,26 +119,103 @@ void loop()
    */
   timeSelect();
   
-  /* 
-   * Requesting temperatures... 
-   */
-  sensors.requestTemperatures();
-  /* 
-   * Why "byIndex"? You can have more than one DS18B20 on the same bus,
-   * and 0 refers to the first IC on the wire 
-   */
-  temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
-  temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
   
-  /* 
-   * Fill in temperatures in template on display 1
-   */
-  LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
-  LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+  unsigned long currentMillis = millis();
+  
+  if(currentMillis - previousMillis > interval) {
+    previousMillis = currentMillis;         // save the last time we requested temps
+    /* 
+     * Requesting temperatures, only at interval milli-seconds
+     */
+    sensors.requestTemperatures();
+    /* 
+     * Why "byIndex"? You can have more than one DS18B20 on the same bus,
+     * and 0 refers to the first IC on the wire 
+     */
+    temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
+    temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
+    
+    /* 
+     * Fill in temperatures in template on display 1
+     */
+    LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
+    LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+  }
 
-  delay(100);
+  /* 
+   * Requesting GPS data... 
+   */
+  requestGPS();
+  
+  delay(10);
 }
 
+
+/* ------------------------------------------------------------------------- *
+ *       Routine to display stuff on the display of choice     LCD_display()
+ * ------------------------------------------------------------------------- */
+void requestGPS() {
+  if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
+  {
+    gps.parse_ubx_data();                   // Parse new GPS data
+    
+    if (gps.utc_time.valid)                 // Valid utc_time data passed ?
+    {
+      
+      /* 
+       * Form UTC date from GPS 
+       */
+      GPSdate = "";
+      
+      if (gps.utc_time.day < 10) {
+        GPSdate.concat("0");
+      }
+      GPSdate.concat(gps.utc_time.day);
+      
+      GPSdate.concat("-");
+      if (gps.utc_time.month < 10) {
+        GPSdate.concat("0");
+      }
+      GPSdate.concat(gps.utc_time.month);
+      GPSdate.concat("-");
+      GPSdate.concat(gps.utc_time.year);
+      
+      /* 
+       * Form UTC time from GPS 
+       */
+      GPStime = "";
+      if (gps.utc_time.hour < 10) {
+        GPStime.concat("0");
+      }
+      GPStime.concat(gps.utc_time.hour);
+      
+      GPStime.concat(":");
+      if (gps.utc_time.minute < 10) {
+        GPStime.concat("0");
+      }
+      GPStime.concat(gps.utc_time.minute);
+      
+      GPStime.concat(":");
+      if (gps.utc_time.second < 10) {
+        GPStime.concat("0");
+      }
+      GPStime.concat(gps.utc_time.second);
+
+      /*
+       * Look for latitude /longtitude
+       */
+      GPS_latitude = float(gps.location.latitude);
+      GPS_longitude = float(gps.location.longitude);
+      
+      LCD_display(lcd2, 3,  5, String(GPS_latitude, 2));
+      LCD_display(lcd2, 3, 13, String(GPS_longitude,2));
+      
+    } else {
+      GPStime = "  :  :  ";
+    }
+  }
+}
+  
 
 /* ------------------------------------------------------------------------- *
  *       Routine to display stuff on the display of choice     LCD_display()
@@ -130,20 +241,22 @@ void doInitialScreen() {
   LCD_display(lcd2, 2, 0, "  Displaying stuff  ");
   LCD_display(lcd2, 3, 0, "Software version    ");
   LCD_display(lcd2, 3, 17, progVersion);
-  delay(5000);
+  delay(3000);
 
   /* 
    * Put template text on LCD 1 
    */
   LCD_display(lcd1, 0, 0, "NL14080 --- Sats: nn");
   LCD_display(lcd1, 1, 0, "Temp  .....  ..... C");
-  LCD_display(lcd1, 2, 0, "Date      22-10-2021");
+  LCD_display(lcd1, 2, 0, "Date        -  -    ");
+  LCD_display(lcd1, 3, 0, "                    ");
   /* 
    * Put template on LCD 2 
    */
-  LCD_display(lcd2, 0, 0, "Station     NL14080");
-  LCD_display(lcd2, 1, 0, "Operator    Gerard");
-  LCD_display(lcd2, 2, 0, "QTH Locator JO33di");
+  LCD_display(lcd2, 0, 0, "Station      NL14080");
+  LCD_display(lcd2, 1, 0, "Operator      Gerard");
+  LCD_display(lcd2, 2, 0, "QTH Locator   JO33di");
+  LCD_display(lcd2, 3, 0, "Loc:                ");
 }
 
 
@@ -156,10 +269,13 @@ void timeSelect() {
   /* 
    * Fill in times in template on display 1
    */
-  if (boolTimeSwitch == 1){
-    LCD_display(lcd1, 3, 0, "Time JO33di 12:12:30");
+  if (boolTimeSwitch == 0){
+    LCD_display(lcd1, 3, 0, "Time JO33di         ");
   } else {
-    LCD_display(lcd1, 3, 0, "Time UTC    10:12:30");
+    LCD_display(lcd1, 2,10, GPSdate); 
+
+    LCD_display(lcd1, 3, 0, "Time UTC            ");
+    LCD_display(lcd1, 3,12, GPStime); 
   }
 }
   
@@ -170,7 +286,7 @@ void timeSelect() {
 void switchBacklights() {
   boolBacklight = digitalRead(PIN_BACKLIGHT);
   
-  if (boolBacklight == 1) {
+  if (boolBacklight == 0) {
     lcd1.noDisplay(); 
     lcd1.noBacklight();
     lcd2.noDisplay(); 
@@ -194,15 +310,21 @@ void setup()
    */
   pinMode(PIN_BACKLIGHT, INPUT_PULLUP);     // Initialize BackLight pin
   pinMode(PIN_UTC_QTH, INPUT_PULLUP);       // Initialize timeSelect pin
+  
+  /* 
+   * Start communication with GPS
+   */
+  gps.begin(9600);                          // Sets up the GPS module to communicate with the Arduino over serial at 9600 baud
+  gps.setUBXNav();                          // Enable the UBX mavigation messages to be sent from the GPS module
 
   /* 
    * Initialize wire library
    */
-  Wire.begin();                              // Initialize I2C library
+  Wire.begin();                             // Initialize I2C library
   
   /* 
    * Initialize screens
-   */
+   */                                               
   lcd1.init();                              // Initialize LCD Screen 1
   lcd2.init();                              // Initialize LCD Screen 1
 

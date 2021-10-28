@@ -15,9 +15,13 @@
  *   0.5    Built in the Velleman library VMA430_GPS
  *          Date and time now showing as UTC time from Satellite
  *          Latitude and Longitude also showing from Satellite
- *   0.6    Small corrections (Rxpin and TXpin switched
+ *   0.6    Small corrections (Rxpin and TXpin switched)
+ *   0.7    Built in temporary backlight switch: press the switch while
+ *              in dark mode and the displays will light up as long as
+ *              the switch is pressed
+ *          Built in Zulu time (local Dutch time)
  * ------------------------------------------------------------------------- */
-#define progVersion "0.6"                   // Program version definition
+#define progVersion "0.7"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -40,6 +44,11 @@
  * ------------------------------------------------------------------------- */
 
 /* ------------------------------------------------------------------------- *
+ *       Debugging switch
+ * ------------------------------------------------------------------------- */
+//#define DEBUG                               // To debug or not to debug?
+
+/* ------------------------------------------------------------------------- *
  *       Include libraries for peripherals 
  * ------------------------------------------------------------------------- */
 #include <OneWire.h>                        // Onewire comms library
@@ -59,16 +68,14 @@
 #define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
 #define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
 #define PIN_UTC_QTH     6                   // Pin switch UTC and QTH time
-
-/* ------------------------------------------------------------------------- *
- *       Debugging switch
- * ------------------------------------------------------------------------- */
-//#define DEBUG                               // To debug or not to debug?
+#define PIN_BL_ON       7                   // Pin switch backlight on temporarily
 
 /* ------------------------------------------------------------------------- *
  *       Other definitions
  * ------------------------------------------------------------------------- */
 #define GPSbaud 9600                        // Baud rate to/from GPS
+#define tempInterval 30000                  // time between temp requests
+#define BL_OnTime 3000                      // time backlight on after activation
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for sensors
@@ -98,12 +105,12 @@ VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to
 
   String GPSdate;                           // Date from GPS
   String GPStime;                           // Time from GPS
+  String zuluTime;                          // Local time NL
 
-  float GPS_latitude;                        // Latitude from GPS
-  float GPS_longitude;                       // Longitude from GPS
+  float GPS_latitude;                       // Latitude from GPS
+  float GPS_longitude;                      // Longitude from GPS
   
   long previousMillis = 30000;              // last time temps were requested
-  long interval = 30000;                    // time between temp requests
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -118,31 +125,13 @@ void loop()
   /* 
    * Read UTC / QTH switch and set time accordingly
    */
-  timeSelect();
+  displayTime();
   
+  /* 
+   * Read and display temperature(s)
+   */
+  displayTemp();
   
-  unsigned long currentMillis = millis();
-  
-  if(currentMillis - previousMillis > interval) {
-    previousMillis = currentMillis;         // save the last time we requested temps
-    /* 
-     * Requesting temperatures, only at interval milli-seconds
-     */
-    sensors.requestTemperatures();
-    /* 
-     * Why "byIndex"? You can have more than one DS18B20 on the same bus,
-     * and 0 refers to the first IC on the wire 
-     */
-    temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
-    temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
-    
-    /* 
-     * Fill in temperatures in template on display 1
-     */
-    LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
-    LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
-  }
-
   /* 
    * Requesting GPS data... 
    */
@@ -157,10 +146,6 @@ void loop()
  * ------------------------------------------------------------------------- */
 void requestGPS() {
 
-#ifdef DEBUG
-  Serial.println("Requesting GPS data:");
-#endif
-
   if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
   {
     gps.parse_ubx_data();                   // Parse new GPS data
@@ -169,10 +154,9 @@ void requestGPS() {
     {
 
 #ifdef DEBUG
-  Serial.println("time received successfully");
+  Serial.println("GPS time received successfully");
 #endif
 
-      
       /* 
        * Form UTC date from GPS 
        */
@@ -211,7 +195,17 @@ void requestGPS() {
         GPStime.concat("0");
       }
       GPStime.concat(gps.utc_time.second);
-
+      
+      /* 
+       * Calculate and form local time from GPS time
+       * Just add 2 to the hour for now,
+       * I know, it's a very crude method...
+       */
+      zuluTime = "";
+      int zuluHour = gps.utc_time.hour+2;
+      if (zuluHour < 10) zuluTime.concat("0");
+      zuluTime.concat(zuluHour);
+      
       /*
        * Look for latitude /longtitude
        */
@@ -222,7 +216,11 @@ void requestGPS() {
       LCD_display(lcd2, 3, 13, String(GPS_longitude,2));
       
     } else {
+#ifdef DEBUG
+      Serial.println("error receiving GPS time");
+#endif
       GPStime = "  :  :  ";
+      zuluTime = "  :  :  ";
     }
   }
 }
@@ -252,8 +250,9 @@ void doInitialScreen() {
   LCD_display(lcd2, 2, 0, "  Displaying stuff  ");
   LCD_display(lcd2, 3, 0, "Software version    ");
   LCD_display(lcd2, 3, 17, progVersion);
-  delay(3000);
 
+  delay(3000);
+  
   /* 
    * Put template text on LCD 1 
    */
@@ -268,28 +267,59 @@ void doInitialScreen() {
   LCD_display(lcd2, 1, 0, "Operator      Gerard");
   LCD_display(lcd2, 2, 0, "QTH Locator   JO33di");
   LCD_display(lcd2, 3, 0, "Loc:                ");
+  
 }
 
 
 /* ------------------------------------------------------------------------- *
  *       Read timeSelect switch into boolean                    timeSelect()
  * ------------------------------------------------------------------------- */
-void timeSelect() {
+void displayTime() {
   boolTimeSwitch = digitalRead(PIN_UTC_QTH);
   
   /* 
-   * Fill in times in template on display 1
+   * Fill in date and time in template on display 1
    */
+  LCD_display(lcd1, 2,10, GPSdate); 
+  
   if (boolTimeSwitch == 0){
-    LCD_display(lcd1, 3, 0, "Time JO33di         ");
+    LCD_display(lcd1, 3, 0, "Local time          ");
+    LCD_display(lcd1, 3,12, zuluTime); 
+    LCD_display(lcd1, 3,14, GPStime.substring(2,10));
   } else {
-    LCD_display(lcd1, 2,10, GPSdate); 
-
-    LCD_display(lcd1, 3, 0, "Time UTC            ");
+    LCD_display(lcd1, 3, 0, "UTC time            ");
     LCD_display(lcd1, 3,12, GPStime); 
   }
 }
   
+
+/* ------------------------------------------------------------------------- *
+ *       Display temperature every interval milliseconds       displayTemp()
+ * ------------------------------------------------------------------------- */
+void displayTemp() {
+  unsigned long currentMillis = millis();
+  
+  if(currentMillis - previousMillis > tempInterval) {
+    previousMillis = currentMillis;         // save the last time we requested temps
+    /* 
+     * Requesting temperatures, only at interval milli-seconds
+     */
+    sensors.requestTemperatures();
+    /* 
+     * Why "byIndex"? You can have more than one DS18B20 on the same bus,
+     * and 0 refers to the first IC on the wire 
+     */
+    temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
+    temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
+    
+    /* 
+     * Fill in temperatures in template on display 1
+     */
+    LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
+    LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+  }
+}
+
 
 /* ------------------------------------------------------------------------- *
  *       Read backlight pin & backlight on / off          switchBacklights()
@@ -297,16 +327,21 @@ void timeSelect() {
 void switchBacklights() {
   boolBacklight = digitalRead(PIN_BACKLIGHT);
   
-  if (boolBacklight == 0) {
-    lcd1.noDisplay(); 
-    lcd1.noBacklight();
-    lcd2.noDisplay(); 
-    lcd2.noBacklight();
-  } else {
-    lcd1.display(); 
+  if (!digitalRead(PIN_BL_ON)) {
     lcd1.backlight();
-    lcd2.display(); 
     lcd2.backlight();
+  } else {
+    if (boolBacklight == 0) {
+  //    lcd1.noDisplay(); 
+      lcd1.noBacklight();
+  //    lcd2.noDisplay(); 
+      lcd2.noBacklight();
+    } else {
+  //    lcd1.display(); 
+      lcd1.backlight();
+  //    lcd2.display(); 
+      lcd2.backlight();
+    }
   }
 }
   
@@ -321,7 +356,9 @@ void setup()
    */
 #ifdef DEBUG
   Serial.begin(9600);
-  Serial.println("HAM gadget debugging start");
+  Serial.print("HAM-gadget version ");
+  Serial.print(progVersion);
+  Serial.println(" - debugging start");
 #endif
   
   /* 
@@ -329,39 +366,31 @@ void setup()
    */
   pinMode(PIN_BACKLIGHT, INPUT_PULLUP);     // Initialize BackLight pin
   pinMode(PIN_UTC_QTH, INPUT_PULLUP);       // Initialize timeSelect pin
+  pinMode(PIN_BL_ON, INPUT_PULLUP);         // Initialize temp backlight on pin
   
   /* 
-   * Start communication with GPS
-   */
-  gps.begin(9600);                          // Sets up the GPS module to communicate with the Arduino over serial at 9600 baud
-  gps.setUBXNav();                          // Enable the UBX mavigation messages to be sent from the GPS module
-
-  /* 
-   * Initialize wire library
-   */
-  Wire.begin();                             // Initialize I2C library
-  
-  /* 
-   * Initialize screens
+   * Initialize several objects
    */                                               
   lcd1.init();                              // Initialize LCD Screen 1
   lcd2.init();                              // Initialize LCD Screen 1
 
-  /* 
-   * Initialize sensors
-   */
-  sensors.begin();                          // Initialize Temp sensors
-
-  /* 
-   * Initially switch backlights on
-   */
   lcd1.backlight();                         // Backlights on by default
   lcd2.backlight();                         // Backlights on by default
   
-  /* 
-   * Initial screen display
-   */
   doInitialScreen();                        // Paint initial screen
+  
+  /* 
+   * Initialize libraries
+   */
+  Wire.begin();                             // Initialize Wire library
+  sensors.begin();                          // Initialize Temp sensors
+
+  /* 
+   * Start GPS communication
+   */
+  gps.begin(GPSbaud);                       // Set up GPS module to communicate over serial
+  gps.setUBXNav();                          // Enable UBX navigation messages from the GPS module
+
 }
 
 /*..+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8....+....9...+*/

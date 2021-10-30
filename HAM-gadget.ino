@@ -1,8 +1,8 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : October 22, 2021
- * Purpose: Time, temp, GPS location indication with NTP fallback
+ * Date   : October 30, 2021
+ * Purpose: Time, temp, GPS location indication
  * Versions:
  *   0.1  : Initial code base, temp sensors working
  *   0.2  : Cleaned op the code
@@ -20,8 +20,9 @@
  *              in dark mode and the displays will light up as long as
  *              the switch is pressed
  *          Built in Zulu time (local Dutch time)
+ *   0.8    Upgraded display precision of latitude / longitude to 8 decimals
  * ------------------------------------------------------------------------- */
-#define progVersion "0.7"                   // Program version definition
+#define progVersion "0.8"                   // Program version
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -179,21 +180,18 @@ void requestGPS() {
        * Form UTC time from GPS 
        */
       GPStime = "";
-      if (gps.utc_time.hour < 10) {
-        GPStime.concat("0");
-      }
+      
+      if (gps.utc_time.hour < 10) GPStime.concat("0");
       GPStime.concat(gps.utc_time.hour);
       
       GPStime.concat(":");
-      if (gps.utc_time.minute < 10) {
-        GPStime.concat("0");
-      }
+
+      if (gps.utc_time.minute < 10) GPStime.concat("0");
       GPStime.concat(gps.utc_time.minute);
       
       GPStime.concat(":");
-      if (gps.utc_time.second < 10) {
-        GPStime.concat("0");
-      }
+
+      if (gps.utc_time.second < 10) GPStime.concat("0");
       GPStime.concat(gps.utc_time.second);
       
       /* 
@@ -202,7 +200,7 @@ void requestGPS() {
        * I know, it's a very crude method...
        */
       zuluTime = "";
-      int zuluHour = gps.utc_time.hour+2;
+      int zuluHour = gps.utc_time.hour + 2;
       if (zuluHour < 10) zuluTime.concat("0");
       zuluTime.concat(zuluHour);
       
@@ -212,8 +210,8 @@ void requestGPS() {
       GPS_latitude = float(gps.location.latitude);
       GPS_longitude = float(gps.location.longitude);
       
-      LCD_display(lcd2, 3,  5, String(GPS_latitude, 2));
-      LCD_display(lcd2, 3, 13, String(GPS_longitude,2));
+      LCD_display(lcd2, 2, 6, String(GPS_latitude, 8));
+      LCD_display(lcd2, 3, 6, String(GPS_longitude,8));
       
     } else {
 #ifdef DEBUG
@@ -264,9 +262,9 @@ void doInitialScreen() {
    * Put template on LCD 2 
    */
   LCD_display(lcd2, 0, 0, "Station      NL14080");
-  LCD_display(lcd2, 1, 0, "Operator      Gerard");
-  LCD_display(lcd2, 2, 0, "QTH Locator   JO33di");
-  LCD_display(lcd2, 3, 0, "Loc:                ");
+  LCD_display(lcd2, 1, 0, "Op Gerard QTH JO33di");
+  LCD_display(lcd2, 2, 0, "Lat :               ");
+  LCD_display(lcd2, 3, 0, "Long:               ");
   
 }
 

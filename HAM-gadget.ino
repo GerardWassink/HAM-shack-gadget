@@ -1,8 +1,8 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : October 30, 2021
- * Purpose: Time, temp, GPS location indication
+ * Date   : October 22, 2021
+ * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working
  *   0.2  : Cleaned op the code
@@ -21,8 +21,9 @@
  *              the switch is pressed
  *          Built in Zulu time (local Dutch time)
  *   0.8    Upgraded display precision of latitude / longitude to 8 decimals
+ *   0.9    Built in a summer / winter time switch
  * ------------------------------------------------------------------------- */
-#define progVersion "0.8"                   // Program version
+#define progVersion "0.9"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -70,6 +71,7 @@
 #define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
 #define PIN_UTC_QTH     6                   // Pin switch UTC and QTH time
 #define PIN_BL_ON       7                   // Pin switch backlight on temporarily
+#define PIN_SUM_WINT    8                   // Pin switch summer / wintertime
 
 /* ------------------------------------------------------------------------- *
  *       Other definitions
@@ -77,6 +79,8 @@
 #define GPSbaud 9600                        // Baud rate to/from GPS
 #define tempInterval 30000                  // time between temp requests
 #define BL_OnTime 3000                      // time backlight on after activation
+#define summerTimeOffset +2                 // Dutch summer time offset from UTC
+#define winterTimeOffset +1                 // Dutch winter time offset from UTC
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for sensors
@@ -200,9 +204,15 @@ void requestGPS() {
        * I know, it's a very crude method...
        */
       zuluTime = "";
-      int zuluHour = gps.utc_time.hour + 2;
+      int zuluHour = 0;
+      if (!digitalRead(PIN_SUM_WINT)) {
+        zuluHour = gps.utc_time.hour + winterTimeOffset;
+      } else {
+        zuluHour = gps.utc_time.hour + summerTimeOffset;
+      }
       if (zuluHour < 10) zuluTime.concat("0");
       zuluTime.concat(zuluHour);
+      zuluTime.concat(GPStime.substring(2,10));
       
       /*
        * Look for latitude /longtitude
@@ -283,7 +293,6 @@ void displayTime() {
   if (boolTimeSwitch == 0){
     LCD_display(lcd1, 3, 0, "Local time          ");
     LCD_display(lcd1, 3,12, zuluTime); 
-    LCD_display(lcd1, 3,14, GPStime.substring(2,10));
   } else {
     LCD_display(lcd1, 3, 0, "UTC time            ");
     LCD_display(lcd1, 3,12, GPStime); 
@@ -362,9 +371,10 @@ void setup()
   /* 
    * Initialize pins
    */
-  pinMode(PIN_BACKLIGHT, INPUT_PULLUP);     // Initialize BackLight pin
-  pinMode(PIN_UTC_QTH, INPUT_PULLUP);       // Initialize timeSelect pin
-  pinMode(PIN_BL_ON, INPUT_PULLUP);         // Initialize temp backlight on pin
+  pinMode(PIN_BACKLIGHT, INPUT_PULLUP);     // BackLight pin
+  pinMode(PIN_UTC_QTH, INPUT_PULLUP);       // timeSelect pin
+  pinMode(PIN_BL_ON, INPUT_PULLUP);         // temp backlight pin
+  pinMode(PIN_SUM_WINT, INPUT_PULLUP);      // summer / wintertime pin
   
   /* 
    * Initialize several objects

@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : October 22, 2021
+ * Date   : October 31, 2021
  * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working

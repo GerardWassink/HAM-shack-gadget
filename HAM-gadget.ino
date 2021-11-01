@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : October 31, 2021
+ * Date   : November 1, 2021
  * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working
@@ -22,8 +22,10 @@
  *          Built in Zulu time (local Dutch time)
  *   0.8    Upgraded display precision of latitude / longitude to 8 decimals
  *   0.9    Built in a summer / winter time switch
+ *   0.10   Code cleanup
+ *          Better debugging method
  * ------------------------------------------------------------------------- */
-#define progVersion "0.9"                   // Program version definition
+#define progVersion "0.10"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -46,9 +48,19 @@
  * ------------------------------------------------------------------------- */
 
 /* ------------------------------------------------------------------------- *
- *       Debugging switch
+ *       Debugging
  * ------------------------------------------------------------------------- */
-//#define DEBUG                               // To debug or not to debug?
+#define DEBUG 0
+
+#if DEBUG == 1
+  #define debugstart(x) Serial.begin(x)
+  #define debug(x) Serial.print(x)
+  #define debugln(x) Serial.println(x)
+#else
+  #define debugstart(x)
+  #define debug(x)
+  #define debugln(x)
+#endif
 
 /* ------------------------------------------------------------------------- *
  *       Include libraries for peripherals 
@@ -115,7 +127,7 @@ VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to
   float GPS_latitude;                       // Latitude from GPS
   float GPS_longitude;                      // Longitude from GPS
   
-  long previousMillis = 30000;              // last time temps were requested
+  long previousMillis = 999999;             // Make timeouts work first time
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -158,9 +170,7 @@ void requestGPS() {
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
 
-#ifdef DEBUG
-  Serial.println("GPS time received successfully");
-#endif
+      debugln("GPS time received successfully");
 
       /* 
        * Form UTC date from GPS 
@@ -200,7 +210,7 @@ void requestGPS() {
       
       /* 
        * Calculate and form local time from GPS time
-       * Just add 2 to the hour for now,
+       * Adding offset for summer or wintertime,
        * I know, it's a very crude method...
        */
       zuluTime = "";
@@ -224,9 +234,9 @@ void requestGPS() {
       LCD_display(lcd2, 3, 6, String(GPS_longitude,8));
       
     } else {
-#ifdef DEBUG
-      Serial.println("error receiving GPS time");
-#endif
+
+      debugln("error receiving GPS time");
+
       GPStime = "  :  :  ";
       zuluTime = "  :  :  ";
     }
@@ -250,14 +260,14 @@ void doInitialScreen() {
   LCD_display(lcd1, 0, 0, "   --- NL14080 ---  ");
   LCD_display(lcd1, 1, 0, "  HAM contraption   ");
   LCD_display(lcd1, 2, 0, "  Displaying stuff  ");
-  LCD_display(lcd1, 3, 0, "Software version    ");
-  LCD_display(lcd1, 3, 17, progVersion);
+  LCD_display(lcd1, 3, 0, "Software vs.        ");
+  LCD_display(lcd1, 3, 15, progVersion);
 
   LCD_display(lcd2, 0, 0, "   --- NL14080 ---  ");
   LCD_display(lcd2, 1, 0, "  HAM contraption   ");
   LCD_display(lcd2, 2, 0, "  Displaying stuff  ");
-  LCD_display(lcd2, 3, 0, "Software version    ");
-  LCD_display(lcd2, 3, 17, progVersion);
+  LCD_display(lcd2, 3, 0, "Software vs.        ");
+  LCD_display(lcd2, 3, 15, progVersion);
 
   delay(3000);
   
@@ -359,14 +369,12 @@ void switchBacklights() {
 void setup()
 {
   /* 
-   * Initialize pins
+   * Start debugging when so defined
    */
-#ifdef DEBUG
-  Serial.begin(9600);
-  Serial.print("HAM-gadget version ");
-  Serial.print(progVersion);
-  Serial.println(" - debugging start");
-#endif
+  debugstart(9600);
+  debug("HAM-gadget version ");
+  debug(progVersion);
+  debugln(" - debugging start");
   
   /* 
    * Initialize pins

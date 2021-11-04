@@ -25,8 +25,12 @@
  *   0.10   Code cleanup
  *          Better debugging method
  *   0.11   Display improvements of time and lat/long
+ *   
+ *   1.0    version 0.11 is the basis for release 1.0
+ *   
+ *   1.1    Remove separate switches, replace by keyboard menu
  * ------------------------------------------------------------------------- */
-#define progVersion "0.11"                   // Program version definition
+#define progVersion "1.1"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -75,16 +79,16 @@
 #include <VMA430_GPS.h>                     // GPS module library
 #include <SoftwareSerial.h>                 // Software serial library
 
+#include <Keypad.h>                         // Keypad library
+
 /* ------------------------------------------------------------------------- *
  *       Pin definitions
  * ------------------------------------------------------------------------- */
 #define RXpin           2                   // TX pin to GPS
 #define TXpin           3                   // RX pin from GPS
 #define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
-#define PIN_BACKLIGHT   5                   // Pin switch backlight on / off
-#define PIN_UTC_QTH     6                   // Pin switch UTC and QTH time
-#define PIN_BL_ON       7                   // Pin switch backlight on temporarily
-#define PIN_SUM_WINT    8                   // Pin switch summer / wintertime
+// pins in use for keyboard: 6,7,8,9,10,11,12,13
+
 
 /* ------------------------------------------------------------------------- *
  *       Other definitions
@@ -95,6 +99,13 @@
 #define BL_OnTime 3000                      // time backlight on after activation
 #define summerTimeOffset +2                 // Dutch summer time offset from UTC
 #define winterTimeOffset +1                 // Dutch winter time offset from UTC
+
+#define LOCAL true                          // Values determining
+#define UTC false                           //   disaply of time type
+
+#define WINTER true                         // Values determining
+#define SUMMER false                        //   disaply of time type
+
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for sensors
@@ -116,11 +127,29 @@ VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to
                                             //   GPS module library
 
 /* ------------------------------------------------------------------------- *
+ *       Define keypad variables
+ * ------------------------------------------------------------------------- */
+  const byte rows = 4; //four rows
+  const byte cols = 4; //four columns
+  char keys[rows][cols] = {
+    {'1','2','3','A'},
+    {'4','5','6','B'},
+    {'7','8','9','C'},
+    {'*','0','#','D'}
+  };
+  byte rowPins[rows] = {9,8,7,6}; //connect to the row pinouts of the keypad
+  byte colPins[cols] = {13,12,11,10}; //connect to the column pinouts of the keypad
+  
+  Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, rows, cols );
+
+
+/* ------------------------------------------------------------------------- *
  *       Define global variables
  * ------------------------------------------------------------------------- */
   float temp1, temp2;                       // Temperatures read from sensors
-  bool boolTimeSwitch;                      // Indicate UTC 0) or QTH (1) time
   bool boolBacklight;                       // Indicate backlight on / off
+  bool boolTimeSwitch;                      // Indicate UTC 0) or QTH (1) time
+  bool boolSumWint;                         // Indicate backlight on / off
 
   String GPSdate;                           // Date from GPS
   String GPStime;                           // Time from GPS
@@ -137,26 +166,86 @@ VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to
 void loop()
 {
   /* 
-   * Read backlight switch status and switch backlight on / off accordingly
+   * Read key from keypad
    */
-  switchBacklights();
+  char key = keypad.getKey();
   
-  /* 
-   * Read UTC / QTH switch and set time accordingly
-   */
-  displayTime();
+  if (key != NO_KEY){
+    
+    switch (key) {
+      case 'A': {
+        boolBacklight = !boolBacklight;
+        break;
+      }
+      case 'B': {
+        boolTimeSwitch = !boolTimeSwitch;
+        break;
+      }
+      case 'C': {
+        boolSumWint = !boolSumWint;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    
+  } else {
+    
+    /* 
+     * Switch backlight on / off according to ststua
+     */
+    if (!boolBacklight) {
+      lcd1.backlight();
+      lcd2.backlight();
+    } else {
+      lcd1.noBacklight();
+      lcd2.noBacklight();
+    }
+    
+    /* 
+     * Display UTC / QTH date & time according to status
+     */
+    LCD_display(lcd1, 2,10, GPSdate);
+    
+    if (boolTimeSwitch == LOCAL){
+      LCD_display(lcd1, 3, 0, "Local time");
+      LCD_display(lcd1, 3,12, zuluTime); 
+    } else {
+      LCD_display(lcd1, 3, 0, "UTC time  ");
+      LCD_display(lcd1, 3,12, GPStime); 
+    }
+    
+    /* 
+     * Read and display temperature(s)
+     */
+    unsigned long currentMillis = millis();
+    if(currentMillis - previousMillis > tempInterval) {
+      previousMillis = currentMillis;         // save the last time we requested temps
+      /* 
+       * Requesting temperatures, only at interval milli-seconds
+       */
+      sensors.requestTemperatures();
+      /* 
+       * Why "byIndex"? You can have more than one DS18B20 on the same bus,
+       * and 0 refers to the first IC on the wire 
+       */
+      temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
+      temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
+      /* 
+       * Fill in temperatures in template on display 1
+       */
+      LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
+      LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+    }
+    
+    /* 
+     * Requesting GPS data... 
+     */
+    requestGPS();
+    
+  }
   
-  /* 
-   * Read and display temperature(s)
-   */
-  displayTemp();
-  
-  /* 
-   * Requesting GPS data... 
-   */
-  requestGPS();
-  
-  delay(10);
 }
 
 
@@ -218,7 +307,7 @@ void requestGPS() {
        */
       zuluTime = "";
       int zuluHour = 0;
-      if (!digitalRead(PIN_SUM_WINT)) {
+      if (boolSumWint) {
         zuluHour = gps.utc_time.hour + winterTimeOffset;
       } else {
         zuluHour = gps.utc_time.hour + summerTimeOffset;
@@ -301,81 +390,6 @@ void doInitialScreen() {
 
 
 /* ------------------------------------------------------------------------- *
- *       Read timeSelect switch into boolean                    timeSelect()
- * ------------------------------------------------------------------------- */
-void displayTime() {
-  boolTimeSwitch = digitalRead(PIN_UTC_QTH);
-  
-  /* 
-   * Fill in date and time in template on display 1
-   */
-  LCD_display(lcd1, 2,10, GPSdate); 
-  
-  if (boolTimeSwitch == 0){
-    LCD_display(lcd1, 3, 0, "Local time");
-    LCD_display(lcd1, 3,12, zuluTime); 
-  } else {
-    LCD_display(lcd1, 3, 0, "UTC time  ");
-    LCD_display(lcd1, 3,12, GPStime); 
-  }
-}
-  
-
-/* ------------------------------------------------------------------------- *
- *       Display temperature every interval milliseconds       displayTemp()
- * ------------------------------------------------------------------------- */
-void displayTemp() {
-  unsigned long currentMillis = millis();
-  
-  if(currentMillis - previousMillis > tempInterval) {
-    previousMillis = currentMillis;         // save the last time we requested temps
-    /* 
-     * Requesting temperatures, only at interval milli-seconds
-     */
-    sensors.requestTemperatures();
-    /* 
-     * Why "byIndex"? You can have more than one DS18B20 on the same bus,
-     * and 0 refers to the first IC on the wire 
-     */
-    temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
-    temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
-    
-    /* 
-     * Fill in temperatures in template on display 1
-     */
-    LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
-    LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
-
-  }
-}
-
-
-/* ------------------------------------------------------------------------- *
- *       Read backlight pin & backlight on / off          switchBacklights()
- * ------------------------------------------------------------------------- */
-void switchBacklights() {
-  boolBacklight = digitalRead(PIN_BACKLIGHT);
-  
-  if (!digitalRead(PIN_BL_ON)) {
-    lcd1.backlight();
-    lcd2.backlight();
-  } else {
-    if (boolBacklight == 0) {
-  //    lcd1.noDisplay(); 
-      lcd1.noBacklight();
-  //    lcd2.noDisplay(); 
-      lcd2.noBacklight();
-    } else {
-  //    lcd1.display(); 
-      lcd1.backlight();
-  //    lcd2.display(); 
-      lcd2.backlight();
-    }
-  }
-}
-  
-
-/* ------------------------------------------------------------------------- *
  *       One time setup routine, initial housekeeping
  * ------------------------------------------------------------------------- */
 void setup()
@@ -387,14 +401,6 @@ void setup()
   debug("HAM-gadget version ");
   debug(progVersion);
   debugln(" - debugging start");
-  
-  /* 
-   * Initialize pins
-   */
-  pinMode(PIN_BACKLIGHT, INPUT_PULLUP);     // BackLight pin
-  pinMode(PIN_UTC_QTH, INPUT_PULLUP);       // timeSelect pin
-  pinMode(PIN_BL_ON, INPUT_PULLUP);         // temp backlight pin
-  pinMode(PIN_SUM_WINT, INPUT_PULLUP);      // summer / wintertime pin
   
   /* 
    * Initialize several objects

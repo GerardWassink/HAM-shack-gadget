@@ -24,8 +24,9 @@
  *   0.9    Built in a summer / winter time switch
  *   0.10   Code cleanup
  *          Better debugging method
+ *   0.11   Display improvements of time and lat/long
  * ------------------------------------------------------------------------- */
-#define progVersion "0.10"                   // Program version definition
+#define progVersion "0.11"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -90,6 +91,7 @@
  * ------------------------------------------------------------------------- */
 #define GPSbaud 9600                        // Baud rate to/from GPS
 #define tempInterval 30000                  // time between temp requests
+#define latLongInterval 1000                // time between lat/long displays
 #define BL_OnTime 3000                      // time backlight on after activation
 #define summerTimeOffset +2                 // Dutch summer time offset from UTC
 #define winterTimeOffset +1                 // Dutch winter time offset from UTC
@@ -162,6 +164,7 @@ void loop()
  *       Routine to display stuff on the display of choice     LCD_display()
  * ------------------------------------------------------------------------- */
 void requestGPS() {
+  unsigned long currentMillis = millis();
 
   if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
   {
@@ -230,9 +233,17 @@ void requestGPS() {
       GPS_latitude = float(gps.location.latitude);
       GPS_longitude = float(gps.location.longitude);
       
-      LCD_display(lcd2, 2, 6, String(GPS_latitude, 8));
-      LCD_display(lcd2, 3, 6, String(GPS_longitude,8));
-      
+      if(currentMillis - previousMillis > latLongInterval) {
+        previousMillis = currentMillis;         // save the last time we displayed
+        
+        /* 
+         * Fill in lat/long in template on display 2
+         */
+        LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
+        LCD_display(lcd2, 3,10, String(GPS_longitude,6));
+        
+      }
+
     } else {
 
       debugln("error receiving GPS time");
@@ -258,13 +269,13 @@ void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
  * ------------------------------------------------------------------------- */
 void doInitialScreen() {
   LCD_display(lcd1, 0, 0, "   --- NL14080 ---  ");
-  LCD_display(lcd1, 1, 0, "  HAM contraption   ");
+  LCD_display(lcd1, 1, 0, "     HAM-gadget     ");
   LCD_display(lcd1, 2, 0, "  Displaying stuff  ");
   LCD_display(lcd1, 3, 0, "Software vs.        ");
   LCD_display(lcd1, 3, 15, progVersion);
 
   LCD_display(lcd2, 0, 0, "   --- NL14080 ---  ");
-  LCD_display(lcd2, 1, 0, "  HAM contraption   ");
+  LCD_display(lcd2, 1, 0, "     HAM-gadget     ");
   LCD_display(lcd2, 2, 0, "  Displaying stuff  ");
   LCD_display(lcd2, 3, 0, "Software vs.        ");
   LCD_display(lcd2, 3, 15, progVersion);
@@ -283,8 +294,8 @@ void doInitialScreen() {
    */
   LCD_display(lcd2, 0, 0, "Station      NL14080");
   LCD_display(lcd2, 1, 0, "Op Gerard QTH JO33di");
-  LCD_display(lcd2, 2, 0, "Lat :               ");
-  LCD_display(lcd2, 3, 0, "Long:               ");
+  LCD_display(lcd2, 2, 0, "Latitude :          ");
+  LCD_display(lcd2, 3, 0, "Longitude:          ");
   
 }
 
@@ -301,10 +312,10 @@ void displayTime() {
   LCD_display(lcd1, 2,10, GPSdate); 
   
   if (boolTimeSwitch == 0){
-    LCD_display(lcd1, 3, 0, "Local time          ");
+    LCD_display(lcd1, 3, 0, "Local time");
     LCD_display(lcd1, 3,12, zuluTime); 
   } else {
-    LCD_display(lcd1, 3, 0, "UTC time            ");
+    LCD_display(lcd1, 3, 0, "UTC time  ");
     LCD_display(lcd1, 3,12, GPStime); 
   }
 }
@@ -334,6 +345,7 @@ void displayTemp() {
      */
     LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
     LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+
   }
 }
 

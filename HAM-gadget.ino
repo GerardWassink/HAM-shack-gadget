@@ -29,8 +29,9 @@
  *   1.0    version 0.11 is the basis for release 1.0
  *   
  *   1.1    Remove separate switches, replace by keyboard menu
+ *   1.2    Code cleanup
  * ------------------------------------------------------------------------- */
-#define progVersion "1.1"                   // Program version definition
+#define progVersion "1.2"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -84,11 +85,10 @@
 /* ------------------------------------------------------------------------- *
  *       Pin definitions
  * ------------------------------------------------------------------------- */
-#define RXpin           2                   // TX pin to GPS
-#define TXpin           3                   // RX pin from GPS
-#define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
-// pins in use for keyboard: 6,7,8,9,10,11,12,13
+#define RXpin           2                   // TX & RX pins
+#define TXpin           3                   //    to GPS
 
+#define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
 
 /* ------------------------------------------------------------------------- *
  *       Other definitions
@@ -105,6 +105,9 @@
 
 #define WINTER true                         // Values determining
 #define SUMMER false                        //   disaply of time type
+
+#define ROWS 4                              // four rows
+#define COLS 4                              // four columns
 
 
 /* ------------------------------------------------------------------------- *
@@ -123,25 +126,26 @@ LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
  *       Create objects for GPS module
  * ------------------------------------------------------------------------- */
 SoftwareSerial ss(TXpin, RXpin);            // TX, RX
-VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to 
-                                            //   GPS module library
+VMA430_GPS gps(&ss);                        // Pass object to GPS library
 
 /* ------------------------------------------------------------------------- *
  *       Define keypad variables
+ *       columns  1-4  connected to pins D13, D12, D11, D10
+ *       row      1-4  connected to pins D9, D8, D7, D6
  * ------------------------------------------------------------------------- */
-  const byte rows = 4; //four rows
-  const byte cols = 4; //four columns
-  char keys[rows][cols] = {
+  char keys[ROWS][COLS] = {
     {'1','2','3','A'},
     {'4','5','6','B'},
     {'7','8','9','C'},
     {'*','0','#','D'}
   };
-  byte rowPins[rows] = {9,8,7,6}; //connect to the row pinouts of the keypad
-  byte colPins[cols] = {13,12,11,10}; //connect to the column pinouts of the keypad
+  byte rowPins[ROWS] = {9,8,7,6};           // row pins of the keypad
+  byte colPins[COLS] = {13,12,11,10};       // column pins of the keypad
   
-  Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, rows, cols );
-
+/* ------------------------------------------------------------------------- *
+ *       Create objects for Keypad
+ * ------------------------------------------------------------------------- */
+  Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
 /* ------------------------------------------------------------------------- *
  *       Define global variables
@@ -158,7 +162,8 @@ VMA430_GPS gps(&ss);                        // Pass SoftwareSerial object to
   float GPS_latitude;                       // Latitude from GPS
   float GPS_longitude;                      // Longitude from GPS
   
-  long previousMillis = 999999;             // Make timeouts work first time
+  long tempPreviousMillis = 999999;         // Make timeouts work first time
+  long latlongPreviousMillis = 999999;      // Make timeouts work first time
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -174,15 +179,15 @@ void loop()
     
     switch (key) {
       case 'A': {
-        boolBacklight = !boolBacklight;
+        boolBacklight = !boolBacklight;         // Switch backlight on / off
         break;
       }
       case 'B': {
-        boolTimeSwitch = !boolTimeSwitch;
+        boolTimeSwitch = !boolTimeSwitch;       // UTC - Local time
         break;
       }
       case 'C': {
-        boolSumWint = !boolSumWint;
+        boolSumWint = !boolSumWint;             // Summer - Winter time (DST)
         break;
       }
       default: {
@@ -220,8 +225,8 @@ void loop()
      * Read and display temperature(s)
      */
     unsigned long currentMillis = millis();
-    if(currentMillis - previousMillis > tempInterval) {
-      previousMillis = currentMillis;         // save the last time we requested temps
+    if(currentMillis - tempPreviousMillis > tempInterval) {
+      tempPreviousMillis = currentMillis;         // save the last time we requested temps
       /* 
        * Requesting temperatures, only at interval milli-seconds
        */
@@ -322,8 +327,8 @@ void requestGPS() {
       GPS_latitude = float(gps.location.latitude);
       GPS_longitude = float(gps.location.longitude);
       
-      if(currentMillis - previousMillis > latLongInterval) {
-        previousMillis = currentMillis;         // save the last time we displayed
+      if(currentMillis - latlongPreviousMillis > latLongInterval) {
+        latlongPreviousMillis = currentMillis;         // save the last time we displayed
         
         /* 
          * Fill in lat/long in template on display 2
@@ -374,7 +379,7 @@ void doInitialScreen() {
   /* 
    * Put template text on LCD 1 
    */
-  LCD_display(lcd1, 0, 0, "NL14080 --- Sats: nn");
+  LCD_display(lcd1, 0, 0, "NL14080 --- (PD1GAW)");
   LCD_display(lcd1, 1, 0, "Temp  .....  ..... C");
   LCD_display(lcd1, 2, 0, "Date        -  -    ");
   LCD_display(lcd1, 3, 0, "                    ");

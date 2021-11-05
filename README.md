@@ -1,14 +1,17 @@
 # HAM-shack-gadget
-Building a clock / thermometer / GPS locator with GPD date/time
+Building a clock / thermometer / GPS locator with GPS date/time
 
-I am working on a new project. It’s in the prototype stage at this time.For this test it’s an Arduino Uno (clone by Velleman), two DS18B20 temperature sensors and two 20 x 4 displays with I2C. The first version I used for setting up the code base. 
+This project is about building a gadget for in the HAM shack. It’s in the prototype stage at this time. I started out with an Arduino Uno (clone by Velleman), two DS18B20 temperature sensors and two 20 x 4 displays with I2C. This first version I used for setting up the code base.
 
-- The temperature sensors do work. One is the room temperature, the second one is on top of my desktop computer (that’s why it’s indicating 25.13 C at the time).
-- The date and time as received from the GPS satellite are shown, as are the latitude and longitude.
+- The gadget allows for the connection of two temperature sensors. I.E. one for room temperature, the other for the outside temp?
+- Date and time are received from the GPS satellite, as are the latitude and longitude.
+- I connected a 4x4 matrix keyboard to be able to do some functions, only three buttons are in use right now:
+-- A - switch the bvacklights on / off
+-- B - toggle UTC and Local time
+-- C - toggle between sumer and winter time (DST)
 
 ## Future plans
+- Make the offset for local time and DST dynamically changeable
 
 ### Enclosure and keyboard
-
 - Of course in the end a nice enclosure will complete the build. 
-- I might also throw in a small 4 x 4 keyboard to enhance the operation and make it a multi functional work horse…

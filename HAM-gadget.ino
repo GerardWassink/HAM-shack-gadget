@@ -30,8 +30,10 @@
  *   
  *   1.1    Remove separate switches, replace by keyboard menu
  *   1.2    Code cleanup
+ *   1.3    Lead in time too long, corrected
+ *          More code cleanup
  * ------------------------------------------------------------------------- */
-#define progVersion "1.2"                   // Program version definition
+#define progVersion "1.3"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -83,11 +85,10 @@
 #include <Keypad.h>                         // Keypad library
 
 /* ------------------------------------------------------------------------- *
- *       Pin definitions
+ *       Pin definitions for temp sensors
  * ------------------------------------------------------------------------- */
 #define RXpin           2                   // TX & RX pins
 #define TXpin           3                   //    to GPS
-
 #define ONE_WIRE_BUS    4                   // Data wire plugged into this pin
 
 /* ------------------------------------------------------------------------- *
@@ -96,7 +97,6 @@
 #define GPSbaud 9600                        // Baud rate to/from GPS
 #define tempInterval 30000                  // time between temp requests
 #define latLongInterval 1000                // time between lat/long displays
-#define BL_OnTime 3000                      // time backlight on after activation
 #define summerTimeOffset +2                 // Dutch summer time offset from UTC
 #define winterTimeOffset +1                 // Dutch winter time offset from UTC
 
@@ -106,8 +106,8 @@
 #define WINTER true                         // Values determining
 #define SUMMER false                        //   disaply of time type
 
-#define ROWS 4                              // four rows
-#define COLS 4                              // four columns
+#define ROWS 4                              // four rows for keyboard
+#define COLS 4                              // four columns for keyboard
 
 
 /* ------------------------------------------------------------------------- *
@@ -151,9 +151,10 @@ VMA430_GPS gps(&ss);                        // Pass object to GPS library
  *       Define global variables
  * ------------------------------------------------------------------------- */
   float temp1, temp2;                       // Temperatures read from sensors
-  bool boolBacklight;                       // Indicate backlight on / off
-  bool boolTimeSwitch;                      // Indicate UTC 0) or QTH (1) time
-  bool boolSumWint;                         // Indicate backlight on / off
+  
+  bool boolBacklight = true;                // Indicate backlight on / off
+  bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
+  bool boolSumWint = WINTER;                // Indicate summer / winter time
 
   String GPSdate;                           // Date from GPS
   String GPStime;                           // Time from GPS
@@ -162,8 +163,8 @@ VMA430_GPS gps(&ss);                        // Pass object to GPS library
   float GPS_latitude;                       // Latitude from GPS
   float GPS_longitude;                      // Longitude from GPS
   
-  long tempPreviousMillis = 999999;         // Make timeouts work first time
-  long latlongPreviousMillis = 999999;      // Make timeouts work first time
+  long tempPreviousMillis = 30000;          // Make timeouts work first time
+  long latlongPreviousMillis = 1000;        // Make timeouts work first time
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -200,7 +201,7 @@ void loop()
     /* 
      * Switch backlight on / off according to ststua
      */
-    if (!boolBacklight) {
+    if (boolBacklight) {
       lcd1.backlight();
       lcd2.backlight();
     } else {

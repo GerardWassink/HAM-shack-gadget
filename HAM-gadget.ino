@@ -38,8 +38,10 @@
  *   1.5    made a start with menu screens
  *          Some memory management by using the F() function
  *              storing strings in program memory
+ *   1.6    Facilitate storing setting to EEPROM 
+ *              and reading them at startup as defaults
  * ------------------------------------------------------------------------- */
-#define progVersion "1.5"                   // Program version definition
+#define progVersion "1.6"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -90,6 +92,8 @@
 
 #include <Keypad.h>                         // Keypad library
 
+#include <EEPROM.h>                         // EEPROM library
+
 /* ------------------------------------------------------------------------- *
  *       Pin definitions for temp sensors
  * ------------------------------------------------------------------------- */
@@ -103,8 +107,6 @@
 #define GPSbaud 9600                        // Baud rate to/from GPS
 #define tempInterval 30000                  // time between temp requests
 #define latLongInterval 1000                // time between lat/long displays
-#define summerTimeOffset +2                 // Dutch summer time offset from UTC
-#define winterTimeOffset +1                 // Dutch winter time offset from UTC
 
 #define ON true                          // Values determining
 #define OFF false                           //   disaply of time type
@@ -136,6 +138,20 @@ LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
  * ------------------------------------------------------------------------- */
 SoftwareSerial ss(TXpin, RXpin);            // TX, RX
 VMA430_GPS gps(&ss);                        // Pass object to GPS library
+
+
+/* ------------------------------------------------------------------------- *
+ *       Create structure and object for settings to store them to EEPROM
+ * ------------------------------------------------------------------------- */
+struct Settings {
+  bool localUTC;                            // to store UTC/Local time
+  bool summerWinter;                        // to store DST switch
+  int  timeOffsetDST;                       // to store local time offset
+  int  timeOffsetNoDST;                     // to store local time offset
+};
+
+Settings mySettings;
+
 
 /* ------------------------------------------------------------------------- *
  *       Define keypad variables
@@ -176,6 +192,10 @@ VMA430_GPS gps(&ss);                        // Pass object to GPS library
   
   long tempPreviousMillis = 5000;           // Make timeouts work first time
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
+  
+  int summerTimeOffset = +2;                // Dutch summer time offset from UTC
+  int winterTimeOffset = +1;                // Dutch winter time offset from UTC
+  
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -459,6 +479,8 @@ void mainMenu()
         break;
       }
       case '2': {
+        doSettingsMenu();
+        displayMainMenu();
         break;
       }
       case '3': {
@@ -486,7 +508,7 @@ void mainMenu()
 void displayMainMenu()
 {
   LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
-  LCD_display(lcd1, 1, 0, F("2. Future use       "));
+  LCD_display(lcd1, 1, 0, F("2. Settings         "));
   LCD_display(lcd1, 2, 0, F("3. Future use       "));
   LCD_display(lcd1, 3, 0, F("4. Future use       "));
 }
@@ -551,6 +573,106 @@ void displayTimeMenu() {
   LCD_display(lcd1, 1, 0, F("2. Show Local time  "));
   LCD_display(lcd1, 2, 0, F("3. Adjust tim offset"));
   LCD_display(lcd1, 3, 0, F("                    "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Perform Settings menu                              doSettingsMenu()
+ * ------------------------------------------------------------------------- */
+void doSettingsMenu()
+{
+  char choice = ' ';
+  bool endLoop = false;
+  
+  debugln("Entering doSettingsMenu");
+
+  displaySettingsMenu();
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '1': {
+        storeSettings();
+        LCD_display(lcd1, 0, 0, F("OK, Settings stored "));
+        delay(500);
+        displayMainMenu();
+        break;
+      }
+      case '2': {
+        getSettings();
+        LCD_display(lcd1, 1, 0, F("OK, Got Settings    "));
+        delay(500);
+        displayMainMenu();
+        break;
+      }
+      case '3': {
+        break;
+      }
+      case '4': {
+        break;
+      }
+      case '*': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the settings menu screen                 displaySettingsMenu()
+ * ------------------------------------------------------------------------- */
+void displaySettingsMenu() {
+  /* 
+   * Paint the settings screen
+   */
+  LCD_display(lcd1, 0, 0, F("1. Store settings   "));
+  LCD_display(lcd1, 1, 0, F("2. Retrieve settings"));
+  LCD_display(lcd1, 2, 0, F("                    "));
+  LCD_display(lcd1, 3, 0, F("                    "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Store settings to EEPROM                            storeSettings()
+ * ------------------------------------------------------------------------- */
+void storeSettings() {
+  /*
+   * Store settings in mySettings structure
+   */
+  mySettings.localUTC         = boolTimeSwitch;
+  mySettings.summerWinter     = boolSumWint;
+  mySettings.timeOffsetDST    = winterTimeOffset;
+  mySettings.timeOffsetNoDST  = summerTimeOffset;
+
+  /*
+   * Store mySettings structure to EEPROM
+   */
+  EEPROM.put(0, mySettings);
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Retrieve settings from EEPROM                         getSettings()
+ * ------------------------------------------------------------------------- */
+void getSettings() {
+  /*
+   * Store mySettings structure to EEPROM
+   */
+  EEPROM.get(0, mySettings);
+
+  /*
+   * Store settings in mySettings structure
+   */
+  boolTimeSwitch    = mySettings.localUTC;
+  boolSumWint       = mySettings.summerWinter;
+  winterTimeOffset  = mySettings.timeOffsetDST;
+  summerTimeOffset  = mySettings.timeOffsetNoDST;
 }
 
 

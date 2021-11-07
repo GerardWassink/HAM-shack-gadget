@@ -32,8 +32,11 @@
  *   1.2    Code cleanup
  *   1.3    Lead in time too long, corrected
  *          More code cleanup
+ *   1.4    Screeens improved
+ *          Some code improvements
+ *          updated Readme
  * ------------------------------------------------------------------------- */
-#define progVersion "1.3"                   // Program version definition
+#define progVersion "1.4"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -100,6 +103,9 @@
 #define summerTimeOffset +2                 // Dutch summer time offset from UTC
 #define winterTimeOffset +1                 // Dutch winter time offset from UTC
 
+#define ON true                          // Values determining
+#define OFF false                           //   disaply of time type
+
 #define LOCAL true                          // Values determining
 #define UTC false                           //   disaply of time type
 
@@ -152,7 +158,9 @@ VMA430_GPS gps(&ss);                        // Pass object to GPS library
  * ------------------------------------------------------------------------- */
   float temp1, temp2;                       // Temperatures read from sensors
   
-  bool boolBacklight = true;                // Indicate backlight on / off
+  bool signalReceived = OFF;              // Do we have a signal already?
+  
+  bool boolBacklight = ON;                // Indicate backlight on / off
   bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
   bool boolSumWint = WINTER;                // Indicate summer / winter time
 
@@ -163,7 +171,7 @@ VMA430_GPS gps(&ss);                        // Pass object to GPS library
   float GPS_latitude;                       // Latitude from GPS
   float GPS_longitude;                      // Longitude from GPS
   
-  long tempPreviousMillis = 30000;          // Make timeouts work first time
+  long tempPreviousMillis = 5000;           // Make timeouts work first time
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
   
 /* ------------------------------------------------------------------------- *
@@ -191,6 +199,10 @@ void loop()
         boolSumWint = !boolSumWint;             // Summer - Winter time (DST)
         break;
       }
+      case 'D': {
+        doInitialScreen(5);                     // Credits - description
+        break;
+      }
       default: {
         break;
       }
@@ -212,14 +224,22 @@ void loop()
     /* 
      * Display UTC / QTH date & time according to status
      */
-    LCD_display(lcd1, 2,10, GPSdate);
-    
-    if (boolTimeSwitch == LOCAL){
-      LCD_display(lcd1, 3, 0, "Local time");
-      LCD_display(lcd1, 3,12, zuluTime); 
-    } else {
-      LCD_display(lcd1, 3, 0, "UTC time  ");
-      LCD_display(lcd1, 3,12, GPStime); 
+    if (signalReceived) {                       // GPS sat in the picture yet?
+      LCD_display(lcd1, 2,10, GPSdate);         // Display date
+      if (boolTimeSwitch == LOCAL){             // determine which time to display
+        LCD_display(lcd1, 3, 0, "Local time  ");
+        LCD_display(lcd1, 3,12, zuluTime); 
+        LCD_display(lcd2, 1, 0, "Local time  ");
+        LCD_display(lcd2, 1,12, zuluTime); 
+      } else {
+        LCD_display(lcd1, 3, 0, "UTC time    ");
+        LCD_display(lcd1, 3,12, GPStime); 
+        LCD_display(lcd2, 1, 0, "UTC time    ");
+        LCD_display(lcd2, 1,12, GPStime); 
+      }
+    } else {                                    // No GPS signal yet
+      LCD_display(lcd1, 3, 0, "Waiting for GPS sat.");
+      LCD_display(lcd2, 1, 0, "Waiting for GPS sat.");
     }
     
     /* 
@@ -227,9 +247,9 @@ void loop()
      */
     unsigned long currentMillis = millis();
     if(currentMillis - tempPreviousMillis > tempInterval) {
-      tempPreviousMillis = currentMillis;         // save the last time we requested temps
+      tempPreviousMillis = currentMillis;       // save the last time we requested temps
       /* 
-       * Requesting temperatures, only at interval milli-seconds
+       * Requesting temperatures, only at tempInterval milli-seconds
        */
       sensors.requestTemperatures();
       /* 
@@ -246,7 +266,7 @@ void loop()
     }
     
     /* 
-     * Requesting GPS data... 
+     * Requesting GPS data every time around... 
      */
     requestGPS();
     
@@ -264,6 +284,7 @@ void requestGPS() {
   if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
   {
     gps.parse_ubx_data();                   // Parse new GPS data
+    signalReceived = true;
     
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
@@ -335,14 +356,14 @@ void requestGPS() {
          * Fill in lat/long in template on display 2
          */
         LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
-        LCD_display(lcd2, 3,10, String(GPS_longitude,6));
+        LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
         
       }
 
     } else {
 
       debugln("error receiving GPS time");
-
+      signalReceived = false;
       GPStime = "  :  :  ";
       zuluTime = "  :  :  ";
     }
@@ -362,35 +383,34 @@ void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
 /* ------------------------------------------------------------------------- *
  *       Show initial screen, then paste template          doInitialScreen()
  * ------------------------------------------------------------------------- */
-void doInitialScreen() {
-  LCD_display(lcd1, 0, 0, "   --- NL14080 ---  ");
-  LCD_display(lcd1, 1, 0, "     HAM-gadget     ");
-  LCD_display(lcd1, 2, 0, "  Displaying stuff  ");
-  LCD_display(lcd1, 3, 0, "Software vs.        ");
-  LCD_display(lcd1, 3, 15, progVersion);
+void doInitialScreen(int s) {
+  LCD_display(lcd1, 0, 0, "NL14080 --- (PD1GAW)");
+  LCD_display(lcd1, 1, 0, "HAM-gadget vs.      ");
+  LCD_display(lcd1, 1, 15, progVersion);
+  LCD_display(lcd1, 2, 0, "(c) Gerard Wassink  ");
+  LCD_display(lcd1, 3, 0, "GNU public license  ");
 
-  LCD_display(lcd2, 0, 0, "   --- NL14080 ---  ");
-  LCD_display(lcd2, 1, 0, "     HAM-gadget     ");
-  LCD_display(lcd2, 2, 0, "  Displaying stuff  ");
-  LCD_display(lcd2, 3, 0, "Software vs.        ");
-  LCD_display(lcd2, 3, 15, progVersion);
+  LCD_display(lcd2, 0, 0, "Displaying:         ");
+  LCD_display(lcd2, 1, 0, "Room temperature    ");
+  LCD_display(lcd2, 2, 0, "GPS time, UTC/Local ");
+  LCD_display(lcd2, 3, 0, "Latitude / Longitude");
 
-  delay(3000);
+  delay(s * 1000);
   
   /* 
    * Put template text on LCD 1 
    */
   LCD_display(lcd1, 0, 0, "NL14080 --- (PD1GAW)");
-  LCD_display(lcd1, 1, 0, "Temp  .....  ..... C");
+  LCD_display(lcd1, 1, 0, "Temp  _____  _____ C");
   LCD_display(lcd1, 2, 0, "Date        -  -    ");
   LCD_display(lcd1, 3, 0, "                    ");
   /* 
    * Put template on LCD 2 
    */
-  LCD_display(lcd2, 0, 0, "Station      NL14080");
-  LCD_display(lcd2, 1, 0, "Op Gerard QTH JO33di");
-  LCD_display(lcd2, 2, 0, "Latitude :          ");
-  LCD_display(lcd2, 3, 0, "Longitude:          ");
+  LCD_display(lcd2, 0, 0, "Operator      Gerard");
+  LCD_display(lcd2, 1, 0, "                    ");
+  LCD_display(lcd2, 2, 0, "Latitude            ");
+  LCD_display(lcd2, 3, 0, "Longitude           ");
   
 }
 
@@ -417,7 +437,7 @@ void setup()
   lcd1.backlight();                         // Backlights on by default
   lcd2.backlight();                         // Backlights on by default
   
-  doInitialScreen();                        // Paint initial screen
+  doInitialScreen(3);                       // Paint initial screen
   
   /* 
    * Initialize libraries

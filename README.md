@@ -9,6 +9,7 @@ This project is about building a gadget for in the HAM shack. It’s in the prot
   - A - switch the bvacklights on / off
   - B - toggle UTC and Local time
   - C - toggle between sumer and winter time (DST)
+  - D - temporarily show boot info screen
 
 ## Future plans
 - Make the offset for local time and DST dynamically changeable

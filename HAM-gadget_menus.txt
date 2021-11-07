@@ -15,6 +15,6 @@ Time UTC    07:15:00
 
 ---- Time menu -----
 1 Show UTC time
-2 Adjust time offset
-3 Show local NL time
+2 Show local NL time
+3 Adjust time offset
 

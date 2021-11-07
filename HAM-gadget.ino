@@ -35,8 +35,11 @@
  *   1.4    Screeens improved
  *          Some code improvements
  *          updated Readme
+ *   1.5    made a start with menu screens
+ *          Some memory management by using the F() function
+ *              storing strings in program memory
  * ------------------------------------------------------------------------- */
-#define progVersion "1.4"                   // Program version definition
+#define progVersion "1.5"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -203,6 +206,11 @@ void loop()
         doInitialScreen(5);                     // Credits - description
         break;
       }
+      case '*': {
+        mainMenu();                             // Go menu structure and do things
+        doTemplates();                          // Restore screens
+        break;
+      }
       default: {
         break;
       }
@@ -227,19 +235,19 @@ void loop()
     if (signalReceived) {                       // GPS sat in the picture yet?
       LCD_display(lcd1, 2,10, GPSdate);         // Display date
       if (boolTimeSwitch == LOCAL){             // determine which time to display
-        LCD_display(lcd1, 3, 0, "Local time  ");
+        LCD_display(lcd1, 3, 0, F("Local time  "));
         LCD_display(lcd1, 3,12, zuluTime); 
-        LCD_display(lcd2, 1, 0, "Local time  ");
+        LCD_display(lcd2, 1, 0, F("Local time  "));
         LCD_display(lcd2, 1,12, zuluTime); 
       } else {
-        LCD_display(lcd1, 3, 0, "UTC time    ");
+        LCD_display(lcd1, 3, 0, F("UTC time    "));
         LCD_display(lcd1, 3,12, GPStime); 
-        LCD_display(lcd2, 1, 0, "UTC time    ");
+        LCD_display(lcd2, 1, 0, F("UTC time    "));
         LCD_display(lcd2, 1,12, GPStime); 
       }
     } else {                                    // No GPS signal yet
-      LCD_display(lcd1, 3, 0, "Waiting for GPS sat.");
-      LCD_display(lcd2, 1, 0, "Waiting for GPS sat.");
+      LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
+      LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
     /* 
@@ -289,7 +297,7 @@ void requestGPS() {
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
 
-      debugln("GPS time received successfully");
+      debugln(F("GPS time received successfully"));
 
       /* 
        * Form UTC date from GPS 
@@ -362,7 +370,7 @@ void requestGPS() {
 
     } else {
 
-      debugln("error receiving GPS time");
+      debugln(F("error receiving GPS time"));
       signalReceived = false;
       GPStime = "  :  :  ";
       zuluTime = "  :  :  ";
@@ -384,34 +392,165 @@ void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
  *       Show initial screen, then paste template          doInitialScreen()
  * ------------------------------------------------------------------------- */
 void doInitialScreen(int s) {
-  LCD_display(lcd1, 0, 0, "NL14080 --- (PD1GAW)");
-  LCD_display(lcd1, 1, 0, "HAM-gadget vs.      ");
+  
+  debugln("Entering doInitialScreen");
+  
+  LCD_display(lcd1, 0, 0, F("NL14080 --- (PD1GAW)"));
+  LCD_display(lcd1, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(lcd1, 1, 15, progVersion);
-  LCD_display(lcd1, 2, 0, "(c) Gerard Wassink  ");
-  LCD_display(lcd1, 3, 0, "GNU public license  ");
+  LCD_display(lcd1, 2, 0, F("(c) Gerard Wassink  "));
+  LCD_display(lcd1, 3, 0, F("GNU public license  "));
 
-  LCD_display(lcd2, 0, 0, "Displaying:         ");
-  LCD_display(lcd2, 1, 0, "Room temperature    ");
-  LCD_display(lcd2, 2, 0, "GPS time, UTC/Local ");
-  LCD_display(lcd2, 3, 0, "Latitude / Longitude");
+  LCD_display(lcd2, 0, 0, F("Displaying:         "));
+  LCD_display(lcd2, 1, 0, F("Room temperature    "));
+  LCD_display(lcd2, 2, 0, F("GPS time, UTC/Local "));
+  LCD_display(lcd2, 3, 0, F("Latitude / Longitude"));
 
   delay(s * 1000);
+  
+  doTemplates();
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Paste templates                                       doTemplates()
+ * ------------------------------------------------------------------------- */
+void doTemplates()
+{
+  
+  debugln("Entering doTemplates");
   
   /* 
    * Put template text on LCD 1 
    */
-  LCD_display(lcd1, 0, 0, "NL14080 --- (PD1GAW)");
-  LCD_display(lcd1, 1, 0, "Temp  _____  _____ C");
-  LCD_display(lcd1, 2, 0, "Date        -  -    ");
-  LCD_display(lcd1, 3, 0, "                    ");
+  LCD_display(lcd1, 0, 0, F("NL14080 --- (PD1GAW)"));
+  LCD_display(lcd1, 1, 0, F("Temp  _____  _____ C"));
+  LCD_display(lcd1, 2, 0, F("Date        -  -    "));
+  LCD_display(lcd1, 3, 0, F("                    "));
   /* 
    * Put template on LCD 2 
    */
-  LCD_display(lcd2, 0, 0, "Operator      Gerard");
-  LCD_display(lcd2, 1, 0, "                    ");
-  LCD_display(lcd2, 2, 0, "Latitude            ");
-  LCD_display(lcd2, 3, 0, "Longitude           ");
+  LCD_display(lcd2, 0, 0, F("Operator      Gerard"));
+  LCD_display(lcd2, 1, 0, F("                    "));
+  LCD_display(lcd2, 2, 0, F("Latitude            "));
+  LCD_display(lcd2, 3, 0, F("Longitude           "));
   
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show main menu                                           mainMenu()
+ * ------------------------------------------------------------------------- */
+void mainMenu()
+{
+  char choice = ' ';
+  bool endLoop = false;
+  
+  debugln("Entering mainMenu");
+  
+  displayMainMenu();
+  
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '1': {
+        doTimeMenu();
+        displayMainMenu();
+        break;
+      }
+      case '2': {
+        break;
+      }
+      case '3': {
+        break;
+      }
+      case '4': {
+        break;
+      }
+      case '*': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the main menu screen                         displayMainMenu()
+ * ------------------------------------------------------------------------- */
+void displayMainMenu()
+{
+  LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
+  LCD_display(lcd1, 1, 0, F("2. Future use       "));
+  LCD_display(lcd1, 2, 0, F("3. Future use       "));
+  LCD_display(lcd1, 3, 0, F("4. Future use       "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Perform Time menu                                      doTimeMenu()
+ * ------------------------------------------------------------------------- */
+void doTimeMenu()
+{
+  char choice = ' ';
+  bool endLoop = false;
+  
+  debugln("Entering doTimeMenu");
+
+  displayTimeMenu();
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '1': {
+        boolTimeSwitch = UTC;
+        LCD_display(lcd1, 0, 0, F("OKAY :: UTC Time    "));
+        delay(500);
+        displayTimeMenu();
+        break;
+      }
+      case '2': {
+        boolTimeSwitch = LOCAL;
+        LCD_display(lcd1, 1, 0, F("OKAY :: Local time  "));
+        delay(500);
+        displayTimeMenu();
+        break;
+      }
+      case '3': {
+        break;
+      }
+      case '4': {
+        break;
+      }
+      case '*': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the time menu screen                         displayTimeMenu()
+ * ------------------------------------------------------------------------- */
+void displayTimeMenu() {
+  /* 
+   * Paint the menu screen
+   */
+  LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
+  LCD_display(lcd1, 1, 0, F("2. Show Local time  "));
+  LCD_display(lcd1, 2, 0, F("3. Adjust tim offset"));
+  LCD_display(lcd1, 3, 0, F("                    "));
 }
 
 

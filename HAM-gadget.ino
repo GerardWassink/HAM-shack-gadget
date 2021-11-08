@@ -46,8 +46,9 @@
  *   1.8    Display issue solved with potentially negative offsets
  *          Added QTH locator JO33di
  *   1.8a   correction of version number...
+ *   1.9    Read defaults at startup with yes/no question
  * ------------------------------------------------------------------------- */
-#define progVersion "1.8"                   // Program version definition
+#define progVersion "1.9"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -721,6 +722,9 @@ void getSettings() {
  * ------------------------------------------------------------------------- */
 void setup()
 {
+  bool endLoop = false;
+  char choice;
+
   /* 
    * Start debugging when so defined
    */
@@ -737,8 +741,32 @@ void setup()
 
   lcd1.backlight();                         // Backlights on by default
   lcd2.backlight();                         // Backlights on by default
+
+  LCD_display(lcd1, 0, 0, F("Load settings?      "));
+  LCD_display(lcd1, 1, 0, F("    (*) for yes     "));
+  LCD_display(lcd1, 2, 0, F("    (#) for no      "));
+  LCD_display(lcd1, 3, 0, F("Your choice please: "));
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '*': {
+        getSettings();                            // Get settings from EEPROM
+        endLoop = true;
+        break;
+      }
+      case '#': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
   
-  doInitialScreen(3);                       // Paint initial screen
+  doInitialScreen(3);                       // Paint initial screen (3 seconds)
   
   /* 
    * Initialize libraries
@@ -751,7 +779,7 @@ void setup()
    */
   gps.begin(GPSbaud);                       // Set up GPS module to communicate over serial
   gps.setUBXNav();                          // Enable UBX navigation messages from the GPS module
-
+  
 }
 
 /*..+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8....+....9...+*/

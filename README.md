@@ -5,13 +5,13 @@ This project is about building a gadget for in the HAM shack. It’s in the prot
 
 - The gadget allows for the connection of two temperature sensors. I.E. one for room temperature, the other for the outside temp?
 - Date and time are received from the GPS satellite, as are the latitude and longitude.
-- I connected a 4x4 matrix keyboard to be able to do some functions, only three buttons are in use right now:
-  - A - switch the bvacklights on / off
-  - B - toggle UTC and Local time
-  - C - toggle between sumer and winter time (DST)
-  - D - temporarily show boot info screen
+- I connected a 4x4 matrix keyboard to be able to do some functions, from the main screen there are two buttons:
+  - A - switch the backlights on / off
+  - \* - show the main menu
 
 ## Future plans
+
+### Settings
 - Make the offset for local time and DST dynamically changeable
 
 ### Enclosure and keyboard

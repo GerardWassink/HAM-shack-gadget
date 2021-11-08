@@ -43,6 +43,8 @@
  *   1.7    Little errors in menu screen corrected
  *          Menu structure expanded
  *          Saving / retrieving Settings improved
+ *   1.8    Display issue solved with potentially negative offsets
+ *          Added QTH locator JO33di
  * ------------------------------------------------------------------------- */
 #define progVersion "1.7"                   // Program version definition
 /* ------------------------------------------------------------------------- *
@@ -406,7 +408,7 @@ void doInitialScreen(int s) {
   
   debugln("Entering doInitialScreen");
   
-  LCD_display(lcd1, 0, 0, F("NL14080 --- (PD1GAW)"));
+  LCD_display(lcd1, 0, 0, F("NL14080 --- (JO33di)"));
   LCD_display(lcd1, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(lcd1, 1, 15, progVersion);
   LCD_display(lcd1, 2, 0, F("(c) Gerard Wassink  "));
@@ -434,7 +436,7 @@ void doTemplates()
   /* 
    * Put template text on LCD 1 
    */
-  LCD_display(lcd1, 0, 0, F("NL14080 --- (PD1GAW)"));
+  LCD_display(lcd1, 0, 0, F("NL14080 --- (JO33di)"));
   LCD_display(lcd1, 1, 0, F("Temp  _____  _____ C"));
   LCD_display(lcd1, 2, 0, F("Date        -  -    "));
   LCD_display(lcd1, 3, 0, F("                    "));
@@ -661,11 +663,11 @@ void showSettings() {
     LCD_display(lcd1, 1, 0, F("Showing: summer time"));
   }
   
-  LCD_display(lcd1, 2, 0, F("Offset summer time  "));
-  LCD_display(lcd1, 2,19, String(summerTimeOffset));
+  LCD_display(lcd1, 2, 0, F("Offset summertim    "));
+  LCD_display(lcd1, 2,17, String(summerTimeOffset));
   
-  LCD_display(lcd1, 3, 0, F("Offset winter time  "));
-  LCD_display(lcd1, 3,19, String(winterTimeOffset));
+  LCD_display(lcd1, 3, 0, F("Offset wintertim    "));
+  LCD_display(lcd1, 3,17, String(winterTimeOffset));
 
   while (!endLoop) {
     choice = keypad.getKey();

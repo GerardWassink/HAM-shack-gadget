@@ -40,8 +40,11 @@
  *              storing strings in program memory
  *   1.6    Facilitate storing setting to EEPROM 
  *              and reading them at startup as defaults
+ *   1.7    Little errors in menu screen corrected
+ *          Menu structure expanded
+ *          Saving / retrieving Settings improved
  * ------------------------------------------------------------------------- */
-#define progVersion "1.6"                   // Program version definition
+#define progVersion "1.7"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -212,18 +215,6 @@ void loop()
     switch (key) {
       case 'A': {
         boolBacklight = !boolBacklight;         // Switch backlight on / off
-        break;
-      }
-      case 'B': {
-        boolTimeSwitch = !boolTimeSwitch;       // UTC - Local time
-        break;
-      }
-      case 'C': {
-        boolSumWint = !boolSumWint;             // Summer - Winter time (DST)
-        break;
-      }
-      case 'D': {
-        doInitialScreen(5);                     // Credits - description
         break;
       }
       case '*': {
@@ -487,9 +478,11 @@ void mainMenu()
         break;
       }
       case '4': {
+        doInitialScreen(5);                     // Credits - description
+        displayMainMenu();
         break;
       }
-      case '*': {
+      case '#': {
         endLoop = true;
         break;
       }
@@ -510,7 +503,7 @@ void displayMainMenu()
   LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
   LCD_display(lcd1, 1, 0, F("2. Settings         "));
   LCD_display(lcd1, 2, 0, F("3. Future use       "));
-  LCD_display(lcd1, 3, 0, F("4. Future use       "));
+  LCD_display(lcd1, 3, 0, F("4. Credits / info   "));
 }
 
 
@@ -538,18 +531,24 @@ void doTimeMenu()
       }
       case '2': {
         boolTimeSwitch = LOCAL;
-        LCD_display(lcd1, 1, 0, F("OKAY :: Local time  "));
+        boolSumWint    = WINTER;
+        LCD_display(lcd1, 1, 0, F("OKAY :: Wintertime  "));
         delay(500);
         displayTimeMenu();
         break;
       }
       case '3': {
+        boolTimeSwitch = LOCAL;
+        boolSumWint    = SUMMER;
+        LCD_display(lcd1, 2, 0, F("OKAY :: Summertime  "));
+        delay(500);
+        displayTimeMenu();
         break;
       }
       case '4': {
         break;
       }
-      case '*': {
+      case '#': {
         endLoop = true;
         break;
       }
@@ -570,9 +569,9 @@ void displayTimeMenu() {
    * Paint the menu screen
    */
   LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
-  LCD_display(lcd1, 1, 0, F("2. Show Local time  "));
-  LCD_display(lcd1, 2, 0, F("3. Adjust tim offset"));
-  LCD_display(lcd1, 3, 0, F("                    "));
+  LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
+  LCD_display(lcd1, 2, 0, F("3. Local summertime "));
+  LCD_display(lcd1, 3, 0, F("4. Adjust tim offset"));
 }
 
 
@@ -592,26 +591,28 @@ void doSettingsMenu()
     choice = keypad.getKey();
     switch (choice) {
       case '1': {
-        storeSettings();
-        LCD_display(lcd1, 0, 0, F("OK, Settings stored "));
-        delay(500);
-        displayMainMenu();
+        showSettings();
+        displaySettingsMenu();
         break;
       }
       case '2': {
-        getSettings();
-        LCD_display(lcd1, 1, 0, F("OK, Got Settings    "));
+        storeSettings();
+        LCD_display(lcd1, 1, 0, F("OK, Settings stored "));
         delay(500);
-        displayMainMenu();
+        displaySettingsMenu();
         break;
       }
       case '3': {
+        getSettings();
+        LCD_display(lcd1, 2, 0, F("OK, Got Settings    "));
+        delay(500);
+        displaySettingsMenu();
         break;
       }
       case '4': {
         break;
       }
-      case '*': {
+      case '#': {
         endLoop = true;
         break;
       }
@@ -631,10 +632,46 @@ void displaySettingsMenu() {
   /* 
    * Paint the settings screen
    */
-  LCD_display(lcd1, 0, 0, F("1. Store settings   "));
-  LCD_display(lcd1, 1, 0, F("2. Retrieve settings"));
-  LCD_display(lcd1, 2, 0, F("                    "));
+  LCD_display(lcd1, 0, 0, F("1. Show settings    "));
+  LCD_display(lcd1, 1, 0, F("2. Store settings   "));
+  LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
   LCD_display(lcd1, 3, 0, F("                    "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show settings screen                                 showSettings()
+ * ------------------------------------------------------------------------- */
+void showSettings() {
+  bool endLoop = false;
+  char choice;
+  
+  /* 
+   * Show settings screen
+   */
+  if (boolTimeSwitch) {
+    LCD_display(lcd1, 0, 0, F("Showing: local time "));
+  } else {
+    LCD_display(lcd1, 0, 0, F("Showing: UTC time   "));
+  }
+  
+  if (boolSumWint == WINTER) {
+    LCD_display(lcd1, 1, 0, F("Showing: winter time"));
+  } else {
+    LCD_display(lcd1, 1, 0, F("Showing: summer time"));
+  }
+  
+  LCD_display(lcd1, 2, 0, F("Offset summer time  "));
+  LCD_display(lcd1, 2,19, String(summerTimeOffset));
+  
+  LCD_display(lcd1, 3, 0, F("Offset winter time  "));
+  LCD_display(lcd1, 3,19, String(winterTimeOffset));
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    if (choice == '#') endLoop = true;
+    delay(100);
+  }
 }
 
 

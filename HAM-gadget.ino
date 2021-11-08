@@ -45,8 +45,9 @@
  *          Saving / retrieving Settings improved
  *   1.8    Display issue solved with potentially negative offsets
  *          Added QTH locator JO33di
+ *   1.8a   correction of version number...
  * ------------------------------------------------------------------------- */
-#define progVersion "1.7"                   // Program version definition
+#define progVersion "1.8"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *

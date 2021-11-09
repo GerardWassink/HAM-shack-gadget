@@ -47,8 +47,10 @@
  *          Added QTH locator JO33di
  *   1.8a   correction of version number...
  *   1.9    Read defaults at startup with yes/no question
+ *   1.10   Time out built in for startup question
+ *          Screen change for settings display
  * ------------------------------------------------------------------------- */
-#define progVersion "1.9"                   // Program version definition
+#define progVersion "1.10"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -114,6 +116,7 @@
 #define GPSbaud 9600                        // Baud rate to/from GPS
 #define tempInterval 30000                  // time between temp requests
 #define latLongInterval 1000                // time between lat/long displays
+#define bootQuestionInterval 9000           // wait time for bootup question
 
 #define ON true                          // Values determining
 #define OFF false                           //   disaply of time type
@@ -199,6 +202,7 @@ Settings mySettings;
   
   long tempPreviousMillis = 5000;           // Make timeouts work first time
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
+  long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
   
   int summerTimeOffset = +2;                // Dutch summer time offset from UTC
   int winterTimeOffset = +1;                // Dutch winter time offset from UTC
@@ -653,25 +657,32 @@ void showSettings() {
   /* 
    * Show settings screen
    */
-  if (boolTimeSwitch) {
-    LCD_display(lcd1, 0, 0, F("Showing: local time "));
-  } else {
+  if (boolTimeSwitch == UTC) {
+    
     LCD_display(lcd1, 0, 0, F("Showing: UTC time   "));
-  }
-  
-  if (boolSumWint == WINTER) {
-    LCD_display(lcd1, 1, 0, F("Showing: winter time"));
+    LCD_display(lcd1, 1, 0, F("                    "));
+    LCD_display(lcd1, 2, 0, F("                    "));
+    LCD_display(lcd1, 3, 0, F("                    "));
+    
   } else {
-    LCD_display(lcd1, 1, 0, F("Showing: summer time"));
+    
+    if (boolSumWint == WINTER) {
+      LCD_display(lcd1, 0, 0, F("Showing: winter time"));
+      
+    } else {
+      
+      LCD_display(lcd1, 0, 0, F("Showing: summer time"));
+    }
+    LCD_display(lcd1, 1, 0, F("Offset wintertim    "));
+    LCD_display(lcd1, 1,17, String(winterTimeOffset));
+    
+    LCD_display(lcd1, 2, 0, F("Offset summertim    "));
+    LCD_display(lcd1, 2,17, String(summerTimeOffset));
+    
+    LCD_display(lcd1, 3, 0, F("                    "));
   }
   
-  LCD_display(lcd1, 2, 0, F("Offset summertim    "));
-  LCD_display(lcd1, 2,17, String(summerTimeOffset));
-  
-  LCD_display(lcd1, 3, 0, F("Offset wintertim    "));
-  LCD_display(lcd1, 3,17, String(winterTimeOffset));
-
-  while (!endLoop) {
+  while (!endLoop) {                        // Keep showing until '#' is pressed
     choice = keypad.getKey();
     if (choice == '#') endLoop = true;
     delay(100);
@@ -724,7 +735,7 @@ void setup()
 {
   bool endLoop = false;
   char choice;
-
+  unsigned long currentMillis = millis();
   /* 
    * Start debugging when so defined
    */
@@ -743,15 +754,18 @@ void setup()
   lcd2.backlight();                         // Backlights on by default
 
   LCD_display(lcd1, 0, 0, F("Load settings?      "));
-  LCD_display(lcd1, 1, 0, F("    (*) for yes     "));
-  LCD_display(lcd1, 2, 0, F("    (#) for no      "));
+  LCD_display(lcd1, 1, 0, F(" (*) yes   (default)"));
+  LCD_display(lcd1, 2, 0, F(" (#) no             "));
   LCD_display(lcd1, 3, 0, F("Your choice please: "));
-
+  
+  bootQuestionPreviousMillis = currentMillis;
   while (!endLoop) {
+    currentMillis = millis();    
+    
     choice = keypad.getKey();
     switch (choice) {
       case '*': {
-        getSettings();                            // Get settings from EEPROM
+        getSettings();                      // Get settings from EEPROM
         endLoop = true;
         break;
       }
@@ -764,6 +778,20 @@ void setup()
       }
     }
     delay(100);
+    
+    /*
+     * User gets maximum of bootQuestionInterval time to react
+     *   if no answer, default is NOT to retreive the settings from EEPROM
+     */
+    if(currentMillis - bootQuestionPreviousMillis > bootQuestionInterval) {
+      bootQuestionPreviousMillis = currentMillis;   // save the last time we requested temps
+      
+      getSettings();                        // Get settings from EEPROM
+      
+      endLoop = true;                       // End of wait time, default is to retrieve 
+                                            //   the settings from EEPROM
+    }
+    
   }
   
   doInitialScreen(3);                       // Paint initial screen (3 seconds)

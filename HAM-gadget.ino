@@ -49,8 +49,11 @@
  *   1.9    Read defaults at startup with yes/no question
  *   1.10   Time out built in for startup question
  *          Screen change for settings display
+ *   
+ *   2.0    version 1.10 is the basis for release 2.0
+ *   
  * ------------------------------------------------------------------------- */
-#define progVersion "1.10"                   // Program version definition
+#define progVersion "2.0"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *

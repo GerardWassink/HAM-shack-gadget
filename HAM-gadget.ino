@@ -52,8 +52,11 @@
  *   
  *   2.0    version 1.10 is the basis for release 2.0
  *   
+ *   2.1    Built in possibility for adjustment for summer and wintertime 
+ *              relative to UTC
+ *   
  * ------------------------------------------------------------------------- */
-#define progVersion "2.0"                   // Program version definition
+#define progVersion "2.1"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -209,7 +212,9 @@ Settings mySettings;
   
   int summerTimeOffset = +2;                // Dutch summer time offset from UTC
   int winterTimeOffset = +1;                // Dutch winter time offset from UTC
-  
+
+  String msg = "                    ";      // Initial value for screen message
+
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -402,15 +407,6 @@ void requestGPS() {
   
 
 /* ------------------------------------------------------------------------- *
- *       Routine to display stuff on the display of choice     LCD_display()
- * ------------------------------------------------------------------------- */
-void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
-    screen.setCursor(col, row);
-    screen.print(text);
-}
-  
-
-/* ------------------------------------------------------------------------- *
  *       Show initial screen, then paste template          doInitialScreen()
  * ------------------------------------------------------------------------- */
 void doInitialScreen(int s) {
@@ -557,6 +553,8 @@ void doTimeMenu()
         break;
       }
       case '4': {
+        timeAdjustMenu();
+        displayTimeMenu();
         break;
       }
       case '#': {
@@ -582,7 +580,131 @@ void displayTimeMenu() {
   LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
   LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
   LCD_display(lcd1, 2, 0, F("3. Local summertime "));
-  LCD_display(lcd1, 3, 0, F("4. Adjust tim offset"));
+  LCD_display(lcd1, 3, 0, F("4. Adjust offsets   "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Screen to adjust time offsets                      timeAdjustMenu()
+ * ------------------------------------------------------------------------- */
+void timeAdjustMenu() {
+  char choice = ' ';
+  bool endLoop = false;
+  int val = 0;
+  
+  debugln("Entering doAdjustMenu");
+
+  displayAdjustMenu();
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '1': {
+        winterTimeOffset = enterOffset(WINTER);
+        delay(500);
+        displayAdjustMenu();
+        break;
+      }
+      case '2': {
+        summerTimeOffset = enterOffset(SUMMER);
+        delay(500);
+        displayAdjustMenu();
+        break;
+      }
+      case '#': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the adjsut time offest menu screen         displayAdjustMenu()
+ * ------------------------------------------------------------------------- */
+void displayAdjustMenu() {
+  /* 
+   * Paint the menu screen
+   */
+  LCD_display(lcd1, 0, 0, F("Adjust Time Offsets "));
+  LCD_display(lcd1, 1, 0, F("1. Adjust wintertime"));
+  LCD_display(lcd1, 2, 0, F("2. Adjust summertime"));
+  LCD_display(lcd1, 3, 0, msg);
+  msg = F("                    ");
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Enter an integer value from keyboard                enterIntValue()
+ * ------------------------------------------------------------------------- */
+int enterOffset(bool season) {
+  char choice = ' ';
+  bool endLoop = false;
+  bool negative = false;
+  int v = 0;
+  int col;
+  
+  // display options
+  LCD_display(lcd1, 0, 0, F("Adjusting offset for"));
+  if (season == WINTER) {
+    LCD_display(lcd1, 1, 0, F("wintertime          "));
+  } else {
+    LCD_display(lcd1, 1, 0, F("summertime          "));
+  }
+  LCD_display(lcd1, 2, 0, F("use *for minus sign:"));
+  LCD_display(lcd1, 3, 0, msg);
+  
+  // read and echo value (* for minus sign, # for enter)
+  col = 0;
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        LCD_display(lcd1, 3, col++, String(choice));
+        v = 10 * v + choice - '0';
+        break;
+        
+      case '*':
+        negative = !negative;
+        LCD_display(lcd1, 3, col++, "-");
+        break;
+        
+      case '#':
+        endLoop = true;
+        break;
+        
+      default:
+        break;
+    }
+    delay(100);
+  }
+  
+  // Calculate sign
+  if (negative) v = v * -1;
+  
+  // check for proper value
+  if ((v > -13) && (v < 13)) {
+    msg = (season == WINTER ? "winter" : "summer");
+    msg.concat("offset changed");
+  } else {
+    msg = " wrong value ";
+    msg.concat(String(v));
+  }
+  return(v);
 }
 
 
@@ -729,6 +851,15 @@ void getSettings() {
   winterTimeOffset  = mySettings.timeOffsetDST;
   summerTimeOffset  = mySettings.timeOffsetNoDST;
 }
+  
+
+/* ------------------------------------------------------------------------- *
+ *       Routine to display stuff on the display of choice     LCD_display()
+ * ------------------------------------------------------------------------- */
+void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
+    screen.setCursor(col, row);
+    screen.print(text);
+}
 
 
 /* ------------------------------------------------------------------------- *
@@ -742,7 +873,7 @@ void setup()
   /* 
    * Start debugging when so defined
    */
-  debugstart(9600);
+  debugstart(115200);
   debug("HAM-gadget version ");
   debug(progVersion);
   debugln(" - debugging start");

@@ -54,9 +54,10 @@
  *   
  *   2.1    Built in possibility for adjustment for summer and wintertime 
  *              relative to UTC
+ *   2.2  : Cleaned op the code
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "2.1"                   // Program version definition
+#define progVersion "2.2"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -124,7 +125,7 @@
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 
-#define ON true                          // Values determining
+#define ON true                             // Values determining
 #define OFF false                           //   disaply of time type
 
 #define LOCAL true                          // Values determining
@@ -193,9 +194,9 @@ Settings mySettings;
  * ------------------------------------------------------------------------- */
   float temp1, temp2;                       // Temperatures read from sensors
   
-  bool signalReceived = OFF;              // Do we have a signal already?
+  bool signalReceived = OFF;                // Do we have a signal already?
   
-  bool boolBacklight = ON;                // Indicate backlight on / off
+  bool boolBacklight = ON;                  // Indicate backlight on / off
   bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
   bool boolSumWint = WINTER;                // Indicate summer / winter time
 
@@ -224,9 +225,9 @@ void loop()
   /* 
    * Read key from keypad
    */
-  char key = keypad.getKey();
+  char key = keypad.getKey();                   // get key press
   
-  if (key != NO_KEY){
+  if (key != NO_KEY){                           // did we receive one?
     
     switch (key) {
       case 'A': {
@@ -243,7 +244,7 @@ void loop()
       }
     }
     
-  } else {
+  } else {                                      // no key received:
     
     /* 
      * Switch backlight on / off according to ststua
@@ -278,11 +279,11 @@ void loop()
     }
     
     /* 
-     * Read and display temperature(s)
+     * Read and display temperature(s), but not every time
      */
     unsigned long currentMillis = millis();
     if(currentMillis - tempPreviousMillis > tempInterval) {
-      tempPreviousMillis = currentMillis;       // save the last time we requested temps
+      tempPreviousMillis = currentMillis;
       /* 
        * Requesting temperatures, only at tempInterval milli-seconds
        */
@@ -323,21 +324,19 @@ void requestGPS() {
     
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
-
       debugln(F("GPS time received successfully"));
-
       /* 
        * Form UTC date from GPS 
        */
       GPSdate = "";
       
-      if (gps.utc_time.day < 10) {
+      if (gps.utc_time.day < 10) {          // Leading zero?
         GPSdate.concat("0");
       }
       GPSdate.concat(gps.utc_time.day);
       
       GPSdate.concat("-");
-      if (gps.utc_time.month < 10) {
+      if (gps.utc_time.month < 10) {        // Leading zero?
         GPSdate.concat("0");
       }
       GPSdate.concat(gps.utc_time.month);
@@ -349,17 +348,20 @@ void requestGPS() {
        */
       GPStime = "";
       
-      if (gps.utc_time.hour < 10) GPStime.concat("0");
+      if (gps.utc_time.hour < 10)           // Leading zero?
+        GPStime.concat("0");
       GPStime.concat(gps.utc_time.hour);
       
       GPStime.concat(":");
 
-      if (gps.utc_time.minute < 10) GPStime.concat("0");
+      if (gps.utc_time.minute < 10)         // Leading zero?
+        GPStime.concat("0");
       GPStime.concat(gps.utc_time.minute);
       
       GPStime.concat(":");
 
-      if (gps.utc_time.second < 10) GPStime.concat("0");
+      if (gps.utc_time.second < 10)         // Leading zero?
+        GPStime.concat("0");
       GPStime.concat(gps.utc_time.second);
       
       /* 
@@ -381,11 +383,11 @@ void requestGPS() {
       /*
        * Look for latitude /longtitude
        */
-      GPS_latitude = float(gps.location.latitude);
-      GPS_longitude = float(gps.location.longitude);
-      
       if(currentMillis - latlongPreviousMillis > latLongInterval) {
         latlongPreviousMillis = currentMillis;         // save the last time we displayed
+        
+        GPS_latitude = float(gps.location.latitude);
+        GPS_longitude = float(gps.location.longitude);
         
         /* 
          * Fill in lat/long in template on display 2
@@ -503,18 +505,6 @@ void mainMenu()
 
 
 /* ------------------------------------------------------------------------- *
- *       Show the main menu screen                         displayMainMenu()
- * ------------------------------------------------------------------------- */
-void displayMainMenu()
-{
-  LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
-  LCD_display(lcd1, 1, 0, F("2. Settings         "));
-  LCD_display(lcd1, 2, 0, F("3. Future use       "));
-  LCD_display(lcd1, 3, 0, F("4. Credits / info   "));
-}
-
-
-/* ------------------------------------------------------------------------- *
  *       Perform Time menu                                      doTimeMenu()
  * ------------------------------------------------------------------------- */
 void doTimeMenu()
@@ -571,20 +561,6 @@ void doTimeMenu()
 
 
 /* ------------------------------------------------------------------------- *
- *       Show the time menu screen                         displayTimeMenu()
- * ------------------------------------------------------------------------- */
-void displayTimeMenu() {
-  /* 
-   * Paint the menu screen
-   */
-  LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
-  LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
-  LCD_display(lcd1, 2, 0, F("3. Local summertime "));
-  LCD_display(lcd1, 3, 0, F("4. Adjust offsets   "));
-}
-
-
-/* ------------------------------------------------------------------------- *
  *       Screen to adjust time offsets                      timeAdjustMenu()
  * ------------------------------------------------------------------------- */
 void timeAdjustMenu() {
@@ -621,21 +597,6 @@ void timeAdjustMenu() {
     }
     delay(100);
   }
-}
-
-
-/* ------------------------------------------------------------------------- *
- *       Show the adjsut time offest menu screen         displayAdjustMenu()
- * ------------------------------------------------------------------------- */
-void displayAdjustMenu() {
-  /* 
-   * Paint the menu screen
-   */
-  LCD_display(lcd1, 0, 0, F("Adjust Time Offsets "));
-  LCD_display(lcd1, 1, 0, F("1. Adjust wintertime"));
-  LCD_display(lcd1, 2, 0, F("2. Adjust summertime"));
-  LCD_display(lcd1, 3, 0, msg);
-  msg = F("                    ");
 }
 
 
@@ -759,20 +720,6 @@ void doSettingsMenu()
 
 
 /* ------------------------------------------------------------------------- *
- *       Show the settings menu screen                 displaySettingsMenu()
- * ------------------------------------------------------------------------- */
-void displaySettingsMenu() {
-  /* 
-   * Paint the settings screen
-   */
-  LCD_display(lcd1, 0, 0, F("1. Show settings    "));
-  LCD_display(lcd1, 1, 0, F("2. Store settings   "));
-  LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
-  LCD_display(lcd1, 3, 0, F("                    "));
-}
-
-
-/* ------------------------------------------------------------------------- *
  *       Show settings screen                                 showSettings()
  * ------------------------------------------------------------------------- */
 void showSettings() {
@@ -859,6 +806,61 @@ void getSettings() {
 void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
     screen.setCursor(col, row);
     screen.print(text);
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the main menu screen                         displayMainMenu()
+ * ------------------------------------------------------------------------- */
+void displayMainMenu()
+{
+  LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
+  LCD_display(lcd1, 1, 0, F("2. Settings         "));
+  LCD_display(lcd1, 2, 0, F("3. Future use       "));
+  LCD_display(lcd1, 3, 0, F("4. Credits / info   "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the time menu screen                         displayTimeMenu()
+ * ------------------------------------------------------------------------- */
+void displayTimeMenu() {
+  /* 
+   * Paint the menu screen
+   */
+  LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
+  LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
+  LCD_display(lcd1, 2, 0, F("3. Local summertime "));
+  LCD_display(lcd1, 3, 0, F("4. Adjust offsets   "));
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the adjsut time offest menu screen         displayAdjustMenu()
+ * ------------------------------------------------------------------------- */
+void displayAdjustMenu() {
+  /* 
+   * Paint the menu screen
+   */
+  LCD_display(lcd1, 0, 0, F("Adjust Time Offsets "));
+  LCD_display(lcd1, 1, 0, F("1. Adjust wintertime"));
+  LCD_display(lcd1, 2, 0, F("2. Adjust summertime"));
+  LCD_display(lcd1, 3, 0, msg);
+  msg = F("                    ");
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Show the settings menu screen                 displaySettingsMenu()
+ * ------------------------------------------------------------------------- */
+void displaySettingsMenu() {
+  /* 
+   * Paint the settings screen
+   */
+  LCD_display(lcd1, 0, 0, F("1. Show settings    "));
+  LCD_display(lcd1, 1, 0, F("2. Store settings   "));
+  LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
+  LCD_display(lcd1, 3, 0, F("                    "));
 }
 
 

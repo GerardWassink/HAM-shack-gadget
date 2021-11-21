@@ -58,8 +58,10 @@
  *   2.3  : Built in Maidenhead locator code calculation:
  *              now being derived from GPS Latitude / Longitude
  *   
+ *   3.0    version 2.3 is the basis for release 3.0
+ *   
  * ------------------------------------------------------------------------- */
-#define progVersion "2.3"                   // Program version definition
+#define progVersion "3.0"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -279,7 +281,7 @@ void loop()
         LCD_display(lcd2, 1, 0, F("UTC time    "));
         LCD_display(lcd2, 1,12, GPStime); 
       }
-      LCD_display(lcd1, 0,13,locatorCode);
+      LCD_display(lcd1, 0,13,locatorCode);      // only display when signal received!
     } else {                                    // No GPS signal yet
       LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
       LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));

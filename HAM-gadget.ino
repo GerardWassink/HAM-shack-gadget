@@ -55,9 +55,11 @@
  *   2.1    Built in possibility for adjustment for summer and wintertime 
  *              relative to UTC
  *   2.2  : Cleaned op the code
+ *   2.3  : Built in Maidenhead locator code calculation:
+ *              now being derived from GPS Latitude / Longitude
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "2.2"                   // Program version definition
+#define progVersion "2.3"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -124,6 +126,7 @@
 #define tempInterval 30000                  // time between temp requests
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
+#define maidenheadInterval 11000            // time between Maidenhaid calculations
 
 #define ON true                             // Values determining
 #define OFF false                           //   disaply of time type
@@ -204,17 +207,20 @@ Settings mySettings;
   String GPStime;                           // Time from GPS
   String zuluTime;                          // Local time NL
 
-  float GPS_latitude;                       // Latitude from GPS
-  float GPS_longitude;                      // Longitude from GPS
+  double GPS_latitude;                       // Latitude from GPS
+  double GPS_longitude;                      // Longitude from GPS
   
   long tempPreviousMillis = 5000;           // Make timeouts work first time
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
   long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
+  long maidenheadPreviousMillis = 5000;     // Make timeouts work first time
   
   int summerTimeOffset = +2;                // Dutch summer time offset from UTC
   int winterTimeOffset = +1;                // Dutch winter time offset from UTC
 
   String msg = "                    ";      // Initial value for screen message
+
+  String locatorCode = "";                  // Maidenhead locator code
 
   
 /* ------------------------------------------------------------------------- *
@@ -273,15 +279,29 @@ void loop()
         LCD_display(lcd2, 1, 0, F("UTC time    "));
         LCD_display(lcd2, 1,12, GPStime); 
       }
+      LCD_display(lcd1, 0,13,locatorCode);
     } else {                                    // No GPS signal yet
       LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
       LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
+
+    /* 
+     * Establish current time in millis() for timed events
+     */
+    unsigned long currentMillis = millis();
+
+    /* 
+     * Calculate 6 digit Maidenhead locator code
+     */
+    if(currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
+      maidenheadPreviousMillis = currentMillis;
+      calcMaidenhead();
+    }
+    
     /* 
      * Read and display temperature(s), but not every time
      */
-    unsigned long currentMillis = millis();
     if(currentMillis - tempPreviousMillis > tempInterval) {
       tempPreviousMillis = currentMillis;
       /* 
@@ -308,6 +328,50 @@ void loop()
     
   }
   
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Routine to calculate 6 digit Maidenhead locator    calcMaidenhead()
+ * ------------------------------------------------------------------------- */
+void calcMaidenhead() {
+  /*
+   * Calculate Field Letters
+   */
+  double lonplus = GPS_longitude + 180;
+  int numFirstLetter = lonplus / 20;
+  double remFirstLetter = lonplus - (numFirstLetter * 20);
+  
+  double latplus = GPS_latitude + 90;
+  int numSecondLetter = latplus / 10;
+  double remSecondLetter = latplus - (numSecondLetter * 10);
+
+  /*
+   * Calculate Square numbers
+   */
+  int digOneSquare = (int)(remFirstLetter / 2);
+  double remOneSquare = remFirstLetter - (digOneSquare * 2);
+  
+  int digTwoSquare = (int)(remSecondLetter / 1);
+  double remTwoSquare = remSecondLetter - (digTwoSquare * 1);
+  
+  /*
+   * Calculate Sub-Square Letters
+   */
+  int digOneSubSquare = remOneSquare / 0.083333;
+  
+  int digTwoSubSquare = remTwoSquare / 0.0416;
+  
+  /*
+   * Display Locator code
+   */
+  locatorCode = String((char)('A' + numFirstLetter));
+  locatorCode.concat(String((char)('A' + numSecondLetter)));
+  locatorCode.concat(String(digOneSquare));
+  locatorCode.concat(String(digTwoSquare));
+  locatorCode.concat(String((char)('a' + digOneSubSquare)));
+  locatorCode.concat(String((char)('a' + digTwoSubSquare)));
+
 }
 
 
@@ -386,8 +450,8 @@ void requestGPS() {
       if(currentMillis - latlongPreviousMillis > latLongInterval) {
         latlongPreviousMillis = currentMillis;         // save the last time we displayed
         
-        GPS_latitude = float(gps.location.latitude);
-        GPS_longitude = float(gps.location.longitude);
+        GPS_latitude  = gps.location.latitude;
+        GPS_longitude = gps.location.longitude;
         
         /* 
          * Fill in lat/long in template on display 2
@@ -443,7 +507,7 @@ void doTemplates()
   /* 
    * Put template text on LCD 1 
    */
-  LCD_display(lcd1, 0, 0, F("NL14080 --- (JO33di)"));
+  LCD_display(lcd1, 0, 0, F("NL14080 --- (      )"));
   LCD_display(lcd1, 1, 0, F("Temp  _____  _____ C"));
   LCD_display(lcd1, 2, 0, F("Date        -  -    "));
   LCD_display(lcd1, 3, 0, F("                    "));

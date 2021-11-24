@@ -80,11 +80,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * ------------------------------------------------------------------------- *
- *       Copyright (C) 2021 Gerard Wassink
+ *       Copyright (C) November 2021 Gerard Wassink
  * ------------------------------------------------------------------------- */
 
 /* ------------------------------------------------------------------------- *
- *       Debugging
+ *       Switch debugging on / off (compiler directives)
  * ------------------------------------------------------------------------- */
 #define DEBUG 0
 
@@ -99,7 +99,7 @@
 #endif
 
 /* ------------------------------------------------------------------------- *
- *       Include libraries for peripherals 
+ *       Include libraries for peripherals & Arduino stuff
  * ------------------------------------------------------------------------- */
 #include <OneWire.h>                        // Onewire comms library
 #include <DallasTemperature.h>              // Temperature library
@@ -115,7 +115,7 @@
 #include <EEPROM.h>                         // EEPROM library
 
 /* ------------------------------------------------------------------------- *
- *       Pin definitions for temp sensors
+ *       Pin definitions for GPS and temp sensors
  * ------------------------------------------------------------------------- */
 #define RXpin           2                   // TX & RX pins
 #define TXpin           3                   //    to GPS
@@ -161,7 +161,6 @@ LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
 SoftwareSerial ss(TXpin, RXpin);            // TX, RX
 VMA430_GPS gps(&ss);                        // Pass object to GPS library
 
-
 /* ------------------------------------------------------------------------- *
  *       Create structure and object for settings to store them to EEPROM
  * ------------------------------------------------------------------------- */
@@ -173,7 +172,6 @@ struct Settings {
 };
 
 Settings mySettings;
-
 
 /* ------------------------------------------------------------------------- *
  *       Define keypad variables
@@ -204,11 +202,11 @@ Settings mySettings;
   bool boolBacklight = ON;                  // Indicate backlight on / off
   bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
   bool boolSumWint = WINTER;                // Indicate summer / winter time
-
+  
   String GPSdate;                           // Date from GPS
   String GPStime;                           // Time from GPS
-  String zuluTime;                          // Local time NL
-
+  String zuluTime;                          // Local time derived from GPS time
+  
   double GPS_latitude;                       // Latitude from GPS
   double GPS_longitude;                      // Longitude from GPS
   
@@ -219,11 +217,11 @@ Settings mySettings;
   
   int summerTimeOffset = +2;                // Dutch summer time offset from UTC
   int winterTimeOffset = +1;                // Dutch winter time offset from UTC
-
+  
   String msg = "                    ";      // Initial value for screen message
-
+  
   String locatorCode = "";                  // Maidenhead locator code
-
+  
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -255,7 +253,7 @@ void loop()
   } else {                                      // no key received:
     
     /* 
-     * Switch backlight on / off according to ststua
+     * Switch backlight on / off according to status
      */
     if (boolBacklight) {
       lcd1.backlight();
@@ -287,12 +285,12 @@ void loop()
       LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
-
+    
     /* 
      * Establish current time in millis() for timed events
      */
     unsigned long currentMillis = millis();
-
+    
     /* 
      * Calculate 6 digit Maidenhead locator code
      */
@@ -327,9 +325,7 @@ void loop()
      * Requesting GPS data every time around... 
      */
     requestGPS();
-    
   }
-  
 }
 
 
@@ -373,16 +369,15 @@ void calcMaidenhead() {
   locatorCode.concat(String(digTwoSquare));
   locatorCode.concat(String((char)('a' + digOneSubSquare)));
   locatorCode.concat(String((char)('a' + digTwoSubSquare)));
-
 }
 
 
 /* ------------------------------------------------------------------------- *
- *       Routine to display stuff on the display of choice     LCD_display()
+ *       Get info from the satellite and decode / format it     requestGPS()
  * ------------------------------------------------------------------------- */
 void requestGPS() {
   unsigned long currentMillis = millis();
-
+  
   if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
   {
     gps.parse_ubx_data();                   // Parse new GPS data
@@ -462,9 +457,9 @@ void requestGPS() {
         LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
         
       }
-
+    
     } else {
-
+    
       debugln(F("error receiving GPS time"));
       signalReceived = false;
       GPStime = "  :  :  ";
@@ -491,7 +486,7 @@ void doInitialScreen(int s) {
   LCD_display(lcd2, 1, 0, F("Room temperature    "));
   LCD_display(lcd2, 2, 0, F("GPS time, UTC/Local "));
   LCD_display(lcd2, 3, 0, F("Latitude / Longitude"));
-
+  
   delay(s * 1000);
   
   doTemplates();

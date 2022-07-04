@@ -54,14 +54,17 @@
  *   
  *   2.1    Built in possibility for adjustment for summer and wintertime 
  *              relative to UTC
- *   2.2  : Cleaned op the code
- *   2.3  : Built in Maidenhead locator code calculation:
+ *   2.2    Cleaned op the code
+ *   2.3    Built in Maidenhead locator code calculation:
  *              now being derived from GPS Latitude / Longitude
  *   
  *   3.0    version 2.3 is the basis for release 3.0
+ *   3.1    Stripped back to displaying only one temperature
+ *   3.2    Passed Novice exam, channged NL14080 to my call sign, PD1GAW
+ *   3.3    Backlight on/off time window
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "3.0"                   // Program version definition
+#define progVersion "3.3"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -129,6 +132,7 @@
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 #define maidenheadInterval 11000            // time between Maidenhaid calculations
+#define timeInterval 1000                   // time between time calculations
 
 #define ON true                             // Values determining
 #define OFF false                           //   disaply of time type
@@ -195,11 +199,17 @@ Settings mySettings;
 /* ------------------------------------------------------------------------- *
  *       Define global variables
  * ------------------------------------------------------------------------- */
-  float temp1, temp2;                       // Temperatures read from sensors
+  float temp1;                              // Temperature read from sensor
   
   bool signalReceived = OFF;                // Do we have a signal already?
   
-  bool boolBacklight = ON;                  // Indicate backlight on / off
+  bool boolBacklight    = ON;               // Indicate backlight desired on/off
+  bool lightsOn         = ON;               // Turn lights on?
+  int  backlightOffHour = 17;               // Backlight switched off hour
+  int  backlightOnHour  = 7;                // Backlight switched on hour
+  int  currentHour      = 0;                // Hour from current UTC time
+  int  prevCurrentHour  = 0;
+  
   bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
   bool boolSumWint = WINTER;                // Indicate summer / winter time
   
@@ -214,7 +224,7 @@ Settings mySettings;
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
   long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
   long maidenheadPreviousMillis = 5000;     // Make timeouts work first time
-  
+  long timePreviousMillis = timeInterval + 1; // Make timeouts work first time
   int summerTimeOffset = +2;                // Dutch summer time offset from UTC
   int winterTimeOffset = +1;                // Dutch winter time offset from UTC
   
@@ -242,7 +252,7 @@ void loop()
       }
       case '*': {
         mainMenu();                             // Go menu structure and do things
-        doTemplates();                          // Restore screens
+        doTemplates();                          //  on return: restore screens
         break;
       }
       default: {
@@ -251,17 +261,6 @@ void loop()
     }
     
   } else {                                      // no key received:
-    
-    /* 
-     * Switch backlight on / off according to status
-     */
-    if (boolBacklight) {
-      lcd1.backlight();
-      lcd2.backlight();
-    } else {
-      lcd1.noBacklight();
-      lcd2.noBacklight();
-    }
     
     /* 
      * Display UTC / QTH date & time according to status
@@ -285,11 +284,46 @@ void loop()
       LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
+    /* ------------------------------------------------------------------------- *
+     *                                                              Timed events
+     * ------------------------------------------------------------------------- */
     
     /* 
-     * Establish current time in millis() for timed events
+     * Establish current time in millis()
      */
+    
     unsigned long currentMillis = millis();
+    
+    /* 
+     * Switch backlight on / off according to time and desired status
+     */
+    if(currentMillis - timePreviousMillis > timeInterval) {
+      timePreviousMillis = currentMillis;
+      
+      if ( (currentHour >= backlightOnHour) && (currentHour < backlightOffHour) ) {
+                                             // We are in daylight, default on
+        if (currentHour != prevCurrentHour) {
+          lightsOn = ON;
+        }
+      } else {
+                                             // We are at night, default off
+        if (currentHour != prevCurrentHour) {
+          lightsOn = OFF;
+        }
+      }
+      (boolBacklight) ? lightsOn = ON : lightsOn = OFF;
+    }
+    
+    /* 
+     * Switch backlight on / off according to status
+     */
+    if (lightsOn) {
+      lcd1.backlight();
+      lcd2.backlight();
+    } else {
+      lcd1.noBacklight();
+      lcd2.noBacklight();
+    }
     
     /* 
      * Calculate 6 digit Maidenhead locator code
@@ -313,12 +347,10 @@ void loop()
        * and 0 refers to the first IC on the wire 
        */
       temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
-      temp2 = sensors.getTempCByIndex(1);       // temp in degrees Celcius from second sensor
       /* 
-       * Fill in temperatures in template on display 1
+       * Fill in temperature in template on display 1
        */
-      LCD_display(lcd1, 1,  6, String(temp1));  // display Celcius
-      LCD_display(lcd1, 1, 13, String(temp2));  // display Celcius
+      LCD_display(lcd1, 1, 13, String(temp1));  // display Celcius
     }
     
     /* 
@@ -408,7 +440,7 @@ void requestGPS() {
        * Form UTC time from GPS 
        */
       GPStime = "";
-      
+
       if (gps.utc_time.hour < 10)           // Leading zero?
         GPStime.concat("0");
       GPStime.concat(gps.utc_time.hour);
@@ -440,6 +472,16 @@ void requestGPS() {
       if (zuluHour < 10) zuluTime.concat("0");
       zuluTime.concat(zuluHour);
       zuluTime.concat(GPStime.substring(2,10));
+      
+      /* 
+       *  determine which time to use for switching display on / off
+       */
+      prevCurrentHour = currentHour;
+      if (boolTimeSwitch == UTC) {
+        currentHour = gps.utc_time.hour;
+      } else {
+        currentHour = zuluHour;
+      }
       
       /*
        * Look for latitude /longtitude
@@ -476,7 +518,7 @@ void doInitialScreen(int s) {
   
   debugln("Entering doInitialScreen");
   
-  LCD_display(lcd1, 0, 0, F("NL14080 --- (JO33di)"));
+  LCD_display(lcd1, 0, 0, F("PD1GAW ---- (JO33di)"));
   LCD_display(lcd1, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(lcd1, 1, 15, progVersion);
   LCD_display(lcd1, 2, 0, F("(c) Gerard Wassink  "));
@@ -504,8 +546,8 @@ void doTemplates()
   /* 
    * Put template text on LCD 1 
    */
-  LCD_display(lcd1, 0, 0, F("NL14080 --- (      )"));
-  LCD_display(lcd1, 1, 0, F("Temp  _____  _____ C"));
+  LCD_display(lcd1, 0, 0, F("PD1GAW ---- (      )"));
+  LCD_display(lcd1, 1, 0, F("Shack temp   _____ C"));
   LCD_display(lcd1, 2, 0, F("Date        -  -    "));
   LCD_display(lcd1, 3, 0, F("                    "));
   /* 
@@ -859,15 +901,6 @@ void getSettings() {
   winterTimeOffset  = mySettings.timeOffsetDST;
   summerTimeOffset  = mySettings.timeOffsetNoDST;
 }
-  
-
-/* ------------------------------------------------------------------------- *
- *       Routine to display stuff on the display of choice     LCD_display()
- * ------------------------------------------------------------------------- */
-void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
-    screen.setCursor(col, row);
-    screen.print(text);
-}
 
 
 /* ------------------------------------------------------------------------- *
@@ -922,6 +955,15 @@ void displaySettingsMenu() {
   LCD_display(lcd1, 1, 0, F("2. Store settings   "));
   LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
   LCD_display(lcd1, 3, 0, F("                    "));
+}
+  
+
+/* ------------------------------------------------------------------------- *
+ *       Routine to display stuff on the display of choice     LCD_display()
+ * ------------------------------------------------------------------------- */
+void LCD_display(LiquidCrystal_I2C screen, int row, int col, String text) {
+    screen.setCursor(col, row);
+    screen.print(text);
 }
 
 

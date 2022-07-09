@@ -132,7 +132,7 @@
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 #define maidenheadInterval 11000            // time between Maidenhaid calculations
-#define timeInterval 1000                   // time between time calculations
+#define timeInterval 1300                   // time between time calculations
 
 #define ON true                             // Values determining
 #define OFF false                           //   disaply of time type
@@ -173,6 +173,8 @@ struct Settings {
   bool summerWinter;                        // to store DST switch
   int  timeOffsetDST;                       // to store local time offset
   int  timeOffsetNoDST;                     // to store local time offset
+  int  backlightOnHour;                     // to store backlight On value
+  int  backlightOffHour;                    // to store backlight Off value
 };
 
 Settings mySettings;
@@ -204,9 +206,8 @@ Settings mySettings;
   bool signalReceived = OFF;                // Do we have a signal already?
   
   bool boolBacklight    = ON;               // Indicate backlight desired on/off
-  bool lightsOn         = ON;               // Turn lights on?
-  int  backlightOffHour = 17;               // Backlight switched off hour
   int  backlightOnHour  = 7;                // Backlight switched on hour
+  int  backlightOffHour = 17;               // Backlight switched off hour
   int  currentHour      = 0;                // Hour from current UTC time
   int  prevCurrentHour  = 0;
   
@@ -300,24 +301,24 @@ void loop()
     if(currentMillis - timePreviousMillis > timeInterval) {
       timePreviousMillis = currentMillis;
       
-      if ( (currentHour >= backlightOnHour) && (currentHour < backlightOffHour) ) {
-                                             // We are in daylight, default on
-        if (currentHour != prevCurrentHour) {
-          lightsOn = ON;
+      if (currentHour != prevCurrentHour) {     // Do we have an hour-change?
+        
+        if (currentHour == backlightOnHour) {
+                                               // We are in daylight, default on
+          boolBacklight = ON;
         }
-      } else {
-                                             // We are at night, default off
-        if (currentHour != prevCurrentHour) {
-          lightsOn = OFF;
+                                               // We are at night, default off
+        if (currentHour == backlightOffHour) {
+          boolBacklight = OFF;
         }
+        prevCurrentHour = currentHour;
       }
-      (boolBacklight) ? lightsOn = ON : lightsOn = OFF;
     }
     
     /* 
      * Switch backlight on / off according to status
      */
-    if (lightsOn) {
+    if (boolBacklight) {
       lcd1.backlight();
       lcd2.backlight();
     } else {
@@ -476,7 +477,6 @@ void requestGPS() {
       /* 
        *  determine which time to use for switching display on / off
        */
-      prevCurrentHour = currentHour;
       if (boolTimeSwitch == UTC) {
         currentHour = gps.utc_time.hour;
       } else {
@@ -587,6 +587,8 @@ void mainMenu()
         break;
       }
       case '3': {
+        doPowerSaveMenu();
+        displayMainMenu();
         break;
       }
       case '4': {
@@ -664,6 +666,63 @@ void doTimeMenu()
 
 
 /* ------------------------------------------------------------------------- *
+ *       Perform PowerSave menu                            doPowerSaveMenu()
+ * ------------------------------------------------------------------------- */
+void doPowerSaveMenu()
+{
+  char choice = ' ';
+  bool endLoop = false;
+  int v = 0;
+  
+  debugln("Entering doPowerSaveMenu");
+
+  displayPowerSaveMenu();
+
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '1': {
+        v = enterIntValue();
+        // check for proper value
+        if ((v < 0) || (v >23)) {
+          msg = "wrong value ";
+          msg.concat(String(v));
+        } else {
+          backlightOnHour = v;
+        }
+        
+        delay(500);
+        displayPowerSaveMenu();
+        break;
+      }
+      case '2': {
+        v = enterIntValue();
+        // check for proper value
+        if ((v < 0) || (v >23)) {
+          msg = "wrong value ";
+          msg.concat(String(v));
+        } else {
+          backlightOffHour = v;
+        }
+        
+        delay(500);
+        displayPowerSaveMenu();
+        break;
+      }
+      case '#': {
+        endLoop = true;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    delay(100);
+  }
+}
+
+
+/* ------------------------------------------------------------------------- *
  *       Screen to adjust time offsets                      timeAdjustMenu()
  * ------------------------------------------------------------------------- */
 void timeAdjustMenu() {
@@ -704,7 +763,7 @@ void timeAdjustMenu() {
 
 
 /* ------------------------------------------------------------------------- *
- *       Enter an integer value from keyboard                enterIntValue()
+ *       Enter an integer value from keyboard                   enterOfset()
  * ------------------------------------------------------------------------- */
 int enterOffset(bool season) {
   char choice = ' ';
@@ -768,6 +827,63 @@ int enterOffset(bool season) {
     msg = " wrong value ";
     msg.concat(String(v));
   }
+  return(v);
+}
+
+
+/* ------------------------------------------------------------------------- *
+ *       Enter an integer value from keyboard                enterIntValue()
+ * ------------------------------------------------------------------------- */
+int enterIntValue() {
+  char choice = ' ';
+  bool endLoop = false;
+  bool negative = false;
+  int v = 0;
+  int col;
+  
+  // display options
+  LCD_display(lcd1, 0, 0, F("Enter value         "));
+  LCD_display(lcd1, 1, 0, F("use *for minus sign:"));
+  LCD_display(lcd1, 2, 0, F("    #for ENTER      "));
+  LCD_display(lcd1, 3, 0, msg);
+  
+  // read and echo value (* for minus sign, # for enter)
+  col = 0;
+  while (!endLoop) {
+    choice = keypad.getKey();
+    switch (choice) {
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        LCD_display(lcd1, 3, col++, String(choice));
+        v = 10 * v + choice - '0';
+        break;
+        
+      case '*':
+        negative = !negative;
+        LCD_display(lcd1, 3, col++, "-");
+        break;
+        
+      case '#':
+        endLoop = true;
+        break;
+        
+      default:
+        break;
+    }
+    delay(100);
+  }
+  
+  // Calculate sign
+  if (negative) v = v * -1;
+
   return(v);
 }
 
@@ -876,6 +992,8 @@ void storeSettings() {
   mySettings.summerWinter     = boolSumWint;
   mySettings.timeOffsetDST    = winterTimeOffset;
   mySettings.timeOffsetNoDST  = summerTimeOffset;
+  mySettings.backlightOnHour  = backlightOnHour;
+  mySettings.backlightOffHour = backlightOffHour;
 
   /*
    * Store mySettings structure to EEPROM
@@ -900,6 +1018,8 @@ void getSettings() {
   boolSumWint       = mySettings.summerWinter;
   winterTimeOffset  = mySettings.timeOffsetDST;
   summerTimeOffset  = mySettings.timeOffsetNoDST;
+  backlightOnHour   = mySettings.backlightOnHour;
+  backlightOffHour  = mySettings.backlightOffHour;
 }
 
 
@@ -910,7 +1030,7 @@ void displayMainMenu()
 {
   LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
   LCD_display(lcd1, 1, 0, F("2. Settings         "));
-  LCD_display(lcd1, 2, 0, F("3. Future use       "));
+  LCD_display(lcd1, 2, 0, F("3. Adjust PowerSave "));
   LCD_display(lcd1, 3, 0, F("4. Credits / info   "));
 }
 
@@ -955,6 +1075,26 @@ void displaySettingsMenu() {
   LCD_display(lcd1, 1, 0, F("2. Store settings   "));
   LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
   LCD_display(lcd1, 3, 0, F("                    "));
+}
+  
+
+/* ------------------------------------------------------------------------- *
+ *       Show the power savings menun                 displayPowerSaveMenu()
+ * ------------------------------------------------------------------------- */
+void displayPowerSaveMenu() {
+  /* 
+   * Paint the settings screen
+   */
+  LCD_display(lcd1, 0, 0, F("Adjust PowerSave    "));
+  LCD_display(lcd1, 1, 0, F("1. OnHour           "));
+  LCD_display(lcd1, 1,11, F("         "));
+  LCD_display(lcd1, 1,11, String(backlightOnHour));
+  LCD_display(lcd1, 2, 0, F("2. OffHour          "));
+  LCD_display(lcd1, 2,11, F("         "));
+  LCD_display(lcd1, 2,11, String(backlightOffHour));
+  LCD_display(lcd1, 3, 0, F("                    "));
+  LCD_display(lcd1, 3, 0, msg);
+  msg = F("                    ");
 }
   
 

@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : November 1, 2021
+ * Date   : May 17, 2023
  * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working
@@ -62,6 +62,7 @@
  *   3.1    Stripped back to displaying only one temperature
  *   3.2    Passed Novice exam, channged NL14080 to my call sign, PD1GAW
  *   3.3    Backlight on/off time window
+ *          Backlight on/off using zulu time now
  *   
  * ------------------------------------------------------------------------- */
 #define progVersion "3.3"                   // Program version definition
@@ -135,7 +136,7 @@
 #define timeInterval 1300                   // time between time calculations
 
 #define ON true                             // Values determining
-#define OFF false                           //   disaply of time type
+#define OFF false                           //   true or false
 
 #define LOCAL true                          // Values determining
 #define UTC false                           //   disaply of time type
@@ -143,6 +144,9 @@
 #define WINTER true                         // Values determining
 #define SUMMER false                        //   disaply of time type
 
+/* ------------------------------------------------------------------------- *
+ *       Definitions for the keyboard
+ * ------------------------------------------------------------------------- */
 #define ROWS 4                              // four rows for keyboard
 #define COLS 4                              // four columns for keyboard
 
@@ -176,8 +180,7 @@ struct Settings {
   int  backlightOnHour;                     // to store backlight On value
   int  backlightOffHour;                    // to store backlight Off value
 };
-
-Settings mySettings;
+Settings mySettings;                        // Create the object
 
 /* ------------------------------------------------------------------------- *
  *       Define keypad variables
@@ -263,12 +266,13 @@ void loop()
     
   } else {                                      // no key received:
     
-    /* 
+    /* --------------------------------------------------------------------- *
      * Display UTC / QTH date & time according to status
-     */
+     * --------------------------------------------------------------------- */
     if (signalReceived) {                       // GPS sat in the picture yet?
       LCD_display(lcd1, 2,10, GPSdate);         // Display date
-      if (boolTimeSwitch == LOCAL){             // determine which time to display
+      
+      if (boolTimeSwitch == LOCAL){             // determine  time to display
         LCD_display(lcd1, 3, 0, F("Local time  "));
         LCD_display(lcd1, 3,12, zuluTime); 
         LCD_display(lcd2, 1, 0, F("Local time  "));
@@ -279,45 +283,37 @@ void loop()
         LCD_display(lcd2, 1, 0, F("UTC time    "));
         LCD_display(lcd2, 1,12, GPStime); 
       }
-      LCD_display(lcd1, 0,13,locatorCode);      // only display when signal received!
+      
+      LCD_display(lcd1, 0,13,locatorCode);      // display when signal present
     } else {                                    // No GPS signal yet
       LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
       LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
-    /* ------------------------------------------------------------------------- *
-     *                                                              Timed events
-     * ------------------------------------------------------------------------- */
+    /* --------------------------------------------------------------------- *
+     *                                                          Timed events
+     * --------------------------------------------------------------------- */
     
-    /* 
-     * Establish current time in millis()
-     */
-    
+    /*                                    Establish current time in millis() */
     unsigned long currentMillis = millis();
     
-    /* 
-     * Switch backlight on / off according to time and desired status
-     */
+    /*        Switch backlight on / off according to time and desired status */
     if(currentMillis - timePreviousMillis > timeInterval) {
       timePreviousMillis = currentMillis;
       
-      if (currentHour != prevCurrentHour) {     // Do we have an hour-change?
+      if (currentHour != prevCurrentHour) {     // We have an hour-change
         
         if (currentHour == backlightOnHour) {
-                                               // We are in daylight, default on
-          boolBacklight = ON;
+          boolBacklight = ON;                   // Daylight, default on
         }
-                                               // We are at night, default off
         if (currentHour == backlightOffHour) {
-          boolBacklight = OFF;
+          boolBacklight = OFF;                  // At night, default off
         }
         prevCurrentHour = currentHour;
       }
     }
     
-    /* 
-     * Switch backlight on / off according to status
-     */
+    /*                         Switch backlight on / off according to status */
     if (boolBacklight) {
       lcd1.backlight();
       lcd2.backlight();
@@ -326,37 +322,28 @@ void loop()
       lcd2.noBacklight();
     }
     
-    /* 
-     * Calculate 6 digit Maidenhead locator code
-     */
+    /*                             Calculate 6 digit Maidenhead locator code */
     if(currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
       maidenheadPreviousMillis = currentMillis;
       calcMaidenhead();
     }
     
-    /* 
-     * Read and display temperature(s), but not every time
-     */
+    /*                   Read and display temperature(s), but not every time */
     if(currentMillis - tempPreviousMillis > tempInterval) {
       tempPreviousMillis = currentMillis;
-      /* 
-       * Requesting temperatures, only at tempInterval milli-seconds
-       */
+
+      /*         Requesting temperatures, only at tempInterval milli-seconds */
       sensors.requestTemperatures();
-      /* 
-       * Why "byIndex"? You can have more than one DS18B20 on the same bus,
-       * and 0 refers to the first IC on the wire 
-       */
-      temp1 = sensors.getTempCByIndex(0);       // temp in degrees Celcius from first sensor
-      /* 
-       * Fill in temperature in template on display 1
-       */
-      LCD_display(lcd1, 1, 13, String(temp1));  // display Celcius
+
+      /*  Why "byIndex"? You can have more than one DS18B20 on the same bus, */
+      /*                            and 0 refers to the first IC on the wire */
+      temp1 = sensors.getTempCByIndex(0);
+
+      /*                        Fill in temperature in template on display 1 */
+      LCD_display(lcd1, 1, 13, String(temp1));
     }
     
-    /* 
-     * Requesting GPS data every time around... 
-     */
+    /*                             Requesting GPS data every time around...  */
     requestGPS();
   }
 }
@@ -366,9 +353,8 @@ void loop()
  *       Routine to calculate 6 digit Maidenhead locator    calcMaidenhead()
  * ------------------------------------------------------------------------- */
 void calcMaidenhead() {
-  /*
-   * Calculate Field Letters
-   */
+
+  /*                                                 Calculate Field Letters */
   double lonplus = GPS_longitude + 180;
   int numFirstLetter = lonplus / 20;
   double remFirstLetter = lonplus - (numFirstLetter * 20);
@@ -377,25 +363,18 @@ void calcMaidenhead() {
   int numSecondLetter = latplus / 10;
   double remSecondLetter = latplus - (numSecondLetter * 10);
 
-  /*
-   * Calculate Square numbers
-   */
+  /*                                                Calculate Square numbers */
   int digOneSquare = (int)(remFirstLetter / 2);
   double remOneSquare = remFirstLetter - (digOneSquare * 2);
   
   int digTwoSquare = (int)(remSecondLetter / 1);
   double remTwoSquare = remSecondLetter - (digTwoSquare * 1);
   
-  /*
-   * Calculate Sub-Square Letters
-   */
+  /*                                            Calculate Sub-Square Letters */
   int digOneSubSquare = remOneSquare / 0.083333;
-  
   int digTwoSubSquare = remTwoSquare / 0.0416;
   
-  /*
-   * Display Locator code
-   */
+  /*                                                    Display Locator code */
   locatorCode = String((char)('A' + numFirstLetter));
   locatorCode.concat(String((char)('A' + numSecondLetter)));
   locatorCode.concat(String(digOneSquare));
@@ -411,7 +390,7 @@ void calcMaidenhead() {
 void requestGPS() {
   unsigned long currentMillis = millis();
   
-  if (gps.getUBX_packet())                  // If a valid GPS UBX data packet is received...
+  if (gps.getUBX_packet())                  // valid GPS UBX packet received
   {
     gps.parse_ubx_data();                   // Parse new GPS data
     signalReceived = true;
@@ -419,11 +398,9 @@ void requestGPS() {
     if (gps.utc_time.valid)                 // Valid utc_time data passed ?
     {
       debugln(F("GPS time received successfully"));
-      /* 
-       * Form UTC date from GPS 
-       */
-      GPSdate = "";
       
+      /*                                           Form UTC date from GPS    */
+      GPSdate = "";
       if (gps.utc_time.day < 10) {          // Leading zero?
         GPSdate.concat("0");
       }
@@ -437,9 +414,7 @@ void requestGPS() {
       GPSdate.concat("-");
       GPSdate.concat(gps.utc_time.year);
       
-      /* 
-       * Form UTC time from GPS 
-       */
+      /*                                           Form UTC time from GPS    */
       GPStime = "";
 
       if (gps.utc_time.hour < 10)           // Leading zero?
@@ -474,27 +449,17 @@ void requestGPS() {
       zuluTime.concat(zuluHour);
       zuluTime.concat(GPStime.substring(2,10));
       
-      /* 
-       *  determine which time to use for switching display on / off
-       */
-      if (boolTimeSwitch == UTC) {
-        currentHour = gps.utc_time.hour;
-      } else {
-        currentHour = zuluHour;
-      }
+      /*                           use local time to switch display on / off */
+      currentHour = zuluHour;
       
-      /*
-       * Look for latitude /longtitude
-       */
+      /*                                       Look for latitude /longtitude */
       if(currentMillis - latlongPreviousMillis > latLongInterval) {
         latlongPreviousMillis = currentMillis;         // save the last time we displayed
         
         GPS_latitude  = gps.location.latitude;
         GPS_longitude = gps.location.longitude;
         
-        /* 
-         * Fill in lat/long in template on display 2
-         */
+        /*                         Fill in lat/long in template on display 2 */
         LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
         LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
         
@@ -945,9 +910,6 @@ void showSettings() {
   bool endLoop = false;
   char choice;
   
-  /* 
-   * Show settings screen
-   */
   if (boolTimeSwitch == UTC) {
     
     LCD_display(lcd1, 0, 0, F("Showing: UTC time   "));
@@ -959,19 +921,18 @@ void showSettings() {
     
     if (boolSumWint == WINTER) {
       LCD_display(lcd1, 0, 0, F("Showing: winter time"));
-      
     } else {
-      
       LCD_display(lcd1, 0, 0, F("Showing: summer time"));
     }
-    LCD_display(lcd1, 1, 0, F("Offset wintertim    "));
-    LCD_display(lcd1, 1,17, String(winterTimeOffset));
-    
-    LCD_display(lcd1, 2, 0, F("Offset summertim    "));
-    LCD_display(lcd1, 2,17, String(summerTimeOffset));
-    
-    LCD_display(lcd1, 3, 0, F("                    "));
   }
+    
+  LCD_display(lcd1, 1, 0, F("Offset wintertim    "));
+  LCD_display(lcd1, 1,17, String(winterTimeOffset));
+  
+  LCD_display(lcd1, 2, 0, F("Offset summertim    "));
+  LCD_display(lcd1, 2,17, String(summerTimeOffset));
+  
+  LCD_display(lcd1, 3, 0, F("                    "));
   
   while (!endLoop) {                        // Keep showing until '#' is pressed
     choice = keypad.getKey();
@@ -1039,9 +1000,6 @@ void displayMainMenu()
  *       Show the time menu screen                         displayTimeMenu()
  * ------------------------------------------------------------------------- */
 void displayTimeMenu() {
-  /* 
-   * Paint the menu screen
-   */
   LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
   LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
   LCD_display(lcd1, 2, 0, F("3. Local summertime "));
@@ -1053,9 +1011,6 @@ void displayTimeMenu() {
  *       Show the adjsut time offest menu screen         displayAdjustMenu()
  * ------------------------------------------------------------------------- */
 void displayAdjustMenu() {
-  /* 
-   * Paint the menu screen
-   */
   LCD_display(lcd1, 0, 0, F("Adjust Time Offsets "));
   LCD_display(lcd1, 1, 0, F("1. Adjust wintertime"));
   LCD_display(lcd1, 2, 0, F("2. Adjust summertime"));
@@ -1068,9 +1023,6 @@ void displayAdjustMenu() {
  *       Show the settings menu screen                 displaySettingsMenu()
  * ------------------------------------------------------------------------- */
 void displaySettingsMenu() {
-  /* 
-   * Paint the settings screen
-   */
   LCD_display(lcd1, 0, 0, F("1. Show settings    "));
   LCD_display(lcd1, 1, 0, F("2. Store settings   "));
   LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
@@ -1082,9 +1034,6 @@ void displaySettingsMenu() {
  *       Show the power savings menun                 displayPowerSaveMenu()
  * ------------------------------------------------------------------------- */
 void displayPowerSaveMenu() {
-  /* 
-   * Paint the settings screen
-   */
   LCD_display(lcd1, 0, 0, F("Adjust PowerSave    "));
   LCD_display(lcd1, 1, 0, F("1. OnHour           "));
   LCD_display(lcd1, 1,11, F("         "));
@@ -1115,23 +1064,22 @@ void setup()
   bool endLoop = false;
   char choice;
   unsigned long currentMillis = millis();
-  /* 
-   * Start debugging when so defined
-   */
+  
+  /*                                         Start debugging when so defined */
   debugstart(115200);
   debug("HAM-gadget version ");
   debug(progVersion);
   debugln(" - debugging start");
   
-  /* 
-   * Initialize several objects
-   */                                               
+  /*                                              Initialize several objects */
+  
   lcd1.init();                              // Initialize LCD Screen 1
   lcd2.init();                              // Initialize LCD Screen 1
 
   lcd1.backlight();                         // Backlights on by default
   lcd2.backlight();                         // Backlights on by default
 
+  /*                        Does user want to retrieve settings from EEPROM? */
   LCD_display(lcd1, 0, 0, F("Load settings?      "));
   LCD_display(lcd1, 1, 0, F(" (*) yes   (default)"));
   LCD_display(lcd1, 2, 0, F(" (#) no             "));
@@ -1158,15 +1106,12 @@ void setup()
     }
     delay(100);
     
-    /*
-     * User gets maximum of bootQuestionInterval time to react
-     *   if no answer, default is NOT to retreive the settings from EEPROM
-     */
+    /*             User gets maximum of bootQuestionInterval time to react   */
+    /*     if no answer, default is NOT to retreive the settings from EEPROM */
     if(currentMillis - bootQuestionPreviousMillis > bootQuestionInterval) {
-      bootQuestionPreviousMillis = currentMillis;   // save the last time we requested temps
+      bootQuestionPreviousMillis = currentMillis;
       
       getSettings();                        // Get settings from EEPROM
-      
       endLoop = true;                       // End of wait time, default is to retrieve 
                                             //   the settings from EEPROM
     }
@@ -1175,18 +1120,13 @@ void setup()
   
   doInitialScreen(3);                       // Paint initial screen (3 seconds)
   
-  /* 
-   * Initialize libraries
-   */
+  /*                                                    Initialize libraries */
   Wire.begin();                             // Initialize Wire library
   sensors.begin();                          // Initialize Temp sensors
 
-  /* 
-   * Start GPS communication
-   */
-  gps.begin(GPSbaud);                       // Set up GPS module to communicate over serial
-  gps.setUBXNav();                          // Enable UBX navigation messages from the GPS module
+  /*                                                 Start GPS communication */
+  
+  gps.begin(GPSbaud);                       // Set up GPS to communicate over serial
+  gps.setUBXNav();                          // Enable UBX navigation messages from GPS
   
 }
-
-/*..+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8....+....9...+*/

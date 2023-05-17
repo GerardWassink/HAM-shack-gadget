@@ -10,8 +10,9 @@ After that first stage I switched to an ATMEGA328P chip and built it and it's su
 - I connected a 4x4 matrix keyboard to be able to do some functions, from the main screen there are two buttons:
   - A - switch the backlights on / off
   - \* - show the main menu
-- The offset for local time and DST are now dynamically changeable
+- The offset for local time and DST are dynamically changeable
 - The whole contraption has been built into a case
 - The 6 digit Maidenhead locator code is dynamically calculated from the GPS Latitude and Longitude
 
-## Future plans
+## Version history
+See top of source code

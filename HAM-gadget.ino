@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : May 17, 2023
+ * Date   : July 22, 2023
  * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working
@@ -63,9 +63,10 @@
  *   3.2    Passed Novice exam, channged NL14080 to my call sign, PD1GAW
  *   3.3    Backlight on/off time window
  *          Backlight on/off using zulu time now
+ *   3.4    Preperations for bringing back to one screen
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "3.3"                   // Program version definition
+#define progVersion "3.4"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -129,7 +130,7 @@
  *       Other definitions
  * ------------------------------------------------------------------------- */
 #define GPSbaud 9600                        // Baud rate to/from GPS
-#define tempInterval 30000                  // time between temp requests
+#define tempInterval 5000                   // time between temp requests
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 #define maidenheadInterval 11000            // time between Maidenhaid calculations
@@ -161,7 +162,7 @@ DallasTemperature sensors(&oneWire);        // Pass oneWire reference to Dallas
  *       Create objects with addres(ses) for the LCD screen(s)
  * ------------------------------------------------------------------------- */
 LiquidCrystal_I2C lcd1(0x27,20,4);          // Initialize display 1
-LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
+// LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for GPS module
@@ -275,19 +276,19 @@ void loop()
       if (boolTimeSwitch == LOCAL){             // determine  time to display
         LCD_display(lcd1, 3, 0, F("Local time  "));
         LCD_display(lcd1, 3,12, zuluTime); 
-        LCD_display(lcd2, 1, 0, F("Local time  "));
-        LCD_display(lcd2, 1,12, zuluTime); 
+//        LCD_display(lcd2, 1, 0, F("Local time  "));
+//        LCD_display(lcd2, 1,12, zuluTime); 
       } else {
         LCD_display(lcd1, 3, 0, F("UTC time    "));
         LCD_display(lcd1, 3,12, GPStime); 
-        LCD_display(lcd2, 1, 0, F("UTC time    "));
-        LCD_display(lcd2, 1,12, GPStime); 
+//        LCD_display(lcd2, 1, 0, F("UTC time    "));
+//        LCD_display(lcd2, 1,12, GPStime); 
       }
       
       LCD_display(lcd1, 0,13,locatorCode);      // display when signal present
     } else {                                    // No GPS signal yet
       LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
-      LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
+//      LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
     }
     
     /* --------------------------------------------------------------------- *
@@ -316,10 +317,10 @@ void loop()
     /*                         Switch backlight on / off according to status */
     if (boolBacklight) {
       lcd1.backlight();
-      lcd2.backlight();
+//      lcd2.backlight();
     } else {
       lcd1.noBacklight();
-      lcd2.noBacklight();
+//      lcd2.noBacklight();
     }
     
     /*                             Calculate 6 digit Maidenhead locator code */
@@ -460,8 +461,9 @@ void requestGPS() {
         GPS_longitude = gps.location.longitude;
         
         /*                         Fill in lat/long in template on display 2 */
-        LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
-        LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
+// QQQQQQQQ
+//        LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
+//        LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
         
       }
     
@@ -489,10 +491,10 @@ void doInitialScreen(int s) {
   LCD_display(lcd1, 2, 0, F("(c) Gerard Wassink  "));
   LCD_display(lcd1, 3, 0, F("GNU public license  "));
 
-  LCD_display(lcd2, 0, 0, F("Displaying:         "));
-  LCD_display(lcd2, 1, 0, F("Room temperature    "));
-  LCD_display(lcd2, 2, 0, F("GPS time, UTC/Local "));
-  LCD_display(lcd2, 3, 0, F("Latitude / Longitude"));
+//  LCD_display(lcd2, 0, 0, F("Displaying:         "));
+//  LCD_display(lcd2, 1, 0, F("Room temperature    "));
+//  LCD_display(lcd2, 2, 0, F("GPS time, UTC/Local "));
+//  LCD_display(lcd2, 3, 0, F("Latitude / Longitude"));
   
   delay(s * 1000);
   
@@ -518,10 +520,10 @@ void doTemplates()
   /* 
    * Put template on LCD 2 
    */
-  LCD_display(lcd2, 0, 0, F("Operator      Gerard"));
-  LCD_display(lcd2, 1, 0, F("                    "));
-  LCD_display(lcd2, 2, 0, F("Latitude            "));
-  LCD_display(lcd2, 3, 0, F("Longitude           "));
+//  LCD_display(lcd2, 0, 0, F("Operator      Gerard"));
+//  LCD_display(lcd2, 1, 0, F("                    "));
+//  LCD_display(lcd2, 2, 0, F("Latitude            "));
+//  LCD_display(lcd2, 3, 0, F("Longitude           "));
   
 }
 
@@ -1074,10 +1076,10 @@ void setup()
   /*                                              Initialize several objects */
   
   lcd1.init();                              // Initialize LCD Screen 1
-  lcd2.init();                              // Initialize LCD Screen 1
+//  lcd2.init();                              // Initialize LCD Screen 1
 
   lcd1.backlight();                         // Backlights on by default
-  lcd2.backlight();                         // Backlights on by default
+//  lcd2.backlight();                         // Backlights on by default
 
   /*                        Does user want to retrieve settings from EEPROM? */
   LCD_display(lcd1, 0, 0, F("Load settings?      "));

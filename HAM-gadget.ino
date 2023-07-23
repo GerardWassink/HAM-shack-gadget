@@ -65,9 +65,11 @@
  *          Backlight on/off using zulu time now
  *   3.4    Preperations for bringing back to one screen
  *   3.5    Re-arrange display items to fit on one screen
+ *   3.6    Possibility to switch bewtween date/time and lat/long combo
+ *   4.0    Release version single screen
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "3.5"                   // Program version definition
+#define progVersion "4.0"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -146,6 +148,9 @@
 #define WINTER true                         // Values determining
 #define SUMMER false                        //   disaply of time type
 
+#define TIME true                           // Values determining
+#define GPS false                           //   disaply of time type
+
 /* ------------------------------------------------------------------------- *
  *       Definitions for the keyboard
  * ------------------------------------------------------------------------- */
@@ -218,6 +223,8 @@ Settings mySettings;                        // Create the object
   bool boolTimeSwitch = UTC;                // Indicate UTC (0) or QTH (1) time
   bool boolSumWint = WINTER;                // Indicate summer / winter time
   
+  bool timeGpsSwitch = TIME;                // Indicate summer / winter time
+  
   String GPSdate;                           // Date from GPS
   String GPStime;                           // Time from GPS
   String zuluTime;                          // Local time derived from GPS time
@@ -258,9 +265,13 @@ void loop()
         boolBacklight = !boolBacklight;         // Switch backlight on / off
         break;
       }
+      case 'B': {
+        timeGpsSwitch = !timeGpsSwitch;         // Switch date-time / Lat-Long
+        break;
+      }
       case '*': {
         mainMenu();                             // Go menu structure and do things
-        doTemplate();                          //  on return: restore screens
+        doTemplate();                           //  on return: restore screens
         break;
       }
       default: {
@@ -277,20 +288,27 @@ void loop()
 
       LCD_display(display, 0, 9, F("GPS"));     // Upper case: gps received
 
-      LCD_display(display, 2, 0, GPSdate);      // Display date
-      
-      if (boolTimeSwitch == LOCAL){             // Determine time to display
+      if (timeGpsSwitch == TIME) {
 
-        LCD_display(display, 2,11, F("Z"));     // Display Zulu time
-        LCD_display(display, 2,12, zuluTime);
-      } else {
-        LCD_display(display, 2,11, F("U"));     // Display UTC
-        LCD_display(display, 2,12, GPStime);
-      }
+        LCD_display(display, 2, 0, F("GPS date:") );      // Display date
+        LCD_display(display, 2,10, GPSdate);              // Display date
       
-    /*                                          Display latitude / longitude */
-      LCD_display(display, 3, 0, GPS_lat);
-      LCD_display(display, 3,11, GPS_lon);
+        if (boolTimeSwitch == LOCAL){                     // Determine time to display
+
+          LCD_display(display, 3, 0, F("Local time: "));  // Display Zulu time
+          LCD_display(display, 3,12, zuluTime);
+        } else {
+          LCD_display(display, 3, 0, F("UTC time:   "));  // Display UTC time
+          LCD_display(display, 3,12, GPStime);
+        }
+
+      } else {
+      /*                                          Display latitude / longitude */
+        LCD_display(display, 2, 0, F("Latitude:  "));     // Display latitude
+        LCD_display(display, 2,11, GPS_lat);
+        LCD_display(display, 3, 0, F("Longitude: "));     // Display longitude
+        LCD_display(display, 3,11, GPS_lon);
+      }
 
     } else {                                    // No GPS signal yet
 
@@ -528,8 +546,23 @@ void doTemplate()
    */
   LCD_display(display, 0, 0, F("PD1GAW        JO33di"));
   LCD_display(display, 1, 0, F("Shack temp   _____ C"));
-  LCD_display(display, 2, 0, F("    -  -      -  -  "));
+  LCD_display(display, 2, 0, F("                    "));
   LCD_display(display, 3, 0, F("                    "));
+
+  if (timeGpsSwitch == TIME) {
+
+    LCD_display(display, 2, 0, F("GPS date:") );      // Display date
+    if (boolTimeSwitch == LOCAL){                     // Determine time to display
+      LCD_display(display, 3, 0, F("Local time: "));  // Display Zulu time
+    } else {
+      LCD_display(display, 3, 0, F("UTC time:   "));  // Display UTC time
+    }
+
+  } else {
+  /*                                          Display latitude / longitude */
+    LCD_display(display, 2, 0, F("Latitude:  "));     // Display latitude
+    LCD_display(display, 3, 0, F("Longitude: "));     // Display longitude
+  }
   
 }
 

@@ -67,9 +67,10 @@
  *   3.5    Re-arrange display items to fit on one screen
  *   3.6    Possibility to switch bewtween date/time and lat/long combo
  *   4.0    Release version single screen
+ *   4.1    Correction for temperature display
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "4.0"                   // Program version definition
+#define progVersion "4.1"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -368,7 +369,8 @@ void loop()
       temp1 = sensors.getTempCByIndex(0);
 
       /*                          Fill in temperature in template on display */
-      LCD_display(display, 1, 13, String(temp1));
+      LCD_display(display, 1, 13, String(temp1,2));
+      LCD_display(display, 1, 18, F(" C") );
     }
     
 

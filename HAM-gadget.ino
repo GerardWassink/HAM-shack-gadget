@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------------- *
  * Name   : HAM-gadget
  * Author : Gerard Wassink
- * Date   : July 22, 2023
+ * Date   : July 23, 2023
  * Purpose: Time, temp, GPS location indication with NTP fallback
  * Versions:
  *   0.1  : Initial code base, temp sensors working
@@ -64,9 +64,10 @@
  *   3.3    Backlight on/off time window
  *          Backlight on/off using zulu time now
  *   3.4    Preperations for bringing back to one screen
+ *   3.5    Re-arrange display items to fit on one screen
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "3.4"                   // Program version definition
+#define progVersion "3.5"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -159,10 +160,9 @@ OneWire oneWire(ONE_WIRE_BUS);              // Setup oneWire for sensors
 DallasTemperature sensors(&oneWire);        // Pass oneWire reference to Dallas
 
 /* ------------------------------------------------------------------------- *
- *       Create objects with addres(ses) for the LCD screen(s)
+ *       Create objects with addres(ses) for the LCD screen
  * ------------------------------------------------------------------------- */
-LiquidCrystal_I2C lcd1(0x27,20,4);          // Initialize display 1
-// LiquidCrystal_I2C lcd2(0x26,20,4);          // Initialize display 2
+LiquidCrystal_I2C display(0x27,20,4);          // Initialize display
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for GPS module
@@ -211,7 +211,7 @@ Settings mySettings;                        // Create the object
   
   bool boolBacklight    = ON;               // Indicate backlight desired on/off
   int  backlightOnHour  = 7;                // Backlight switched on hour
-  int  backlightOffHour = 17;               // Backlight switched off hour
+  int  backlightOffHour = 19;               // Backlight switched off hour
   int  currentHour      = 0;                // Hour from current UTC time
   int  prevCurrentHour  = 0;
   
@@ -222,16 +222,19 @@ Settings mySettings;                        // Create the object
   String GPStime;                           // Time from GPS
   String zuluTime;                          // Local time derived from GPS time
   
-  double GPS_latitude;                       // Latitude from GPS
-  double GPS_longitude;                      // Longitude from GPS
+  double GPS_latitude;                      // Latitude from GPS
+  double GPS_longitude;                     // Longitude from GPS
+  String GPS_lat;                           // String latitude
+  String GPS_lon;                           // String Longitude
   
   long tempPreviousMillis = 5000;           // Make timeouts work first time
   long latlongPreviousMillis = 1000;        // Make timeouts work first time
   long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
   long maidenheadPreviousMillis = 5000;     // Make timeouts work first time
   long timePreviousMillis = timeInterval + 1; // Make timeouts work first time
-  int summerTimeOffset = +2;                // Dutch summer time offset from UTC
-  int winterTimeOffset = +1;                // Dutch winter time offset from UTC
+
+  int summerTimeOffset = +2;                // Summer time offset from UTC (Dutch)
+  int winterTimeOffset = +1;                // Winter time offset from UTC (Dutch)
   
   String msg = "                    ";      // Initial value for screen message
   
@@ -257,7 +260,7 @@ void loop()
       }
       case '*': {
         mainMenu();                             // Go menu structure and do things
-        doTemplates();                          //  on return: restore screens
+        doTemplate();                          //  on return: restore screens
         break;
       }
       default: {
@@ -271,24 +274,28 @@ void loop()
      * Display UTC / QTH date & time according to status
      * --------------------------------------------------------------------- */
     if (signalReceived) {                       // GPS sat in the picture yet?
-      LCD_display(lcd1, 2,10, GPSdate);         // Display date
+
+      LCD_display(display, 0, 9, F("GPS"));     // Upper case: gps received
+
+      LCD_display(display, 2, 0, GPSdate);      // Display date
       
-      if (boolTimeSwitch == LOCAL){             // determine  time to display
-        LCD_display(lcd1, 3, 0, F("Local time  "));
-        LCD_display(lcd1, 3,12, zuluTime); 
-//        LCD_display(lcd2, 1, 0, F("Local time  "));
-//        LCD_display(lcd2, 1,12, zuluTime); 
+      if (boolTimeSwitch == LOCAL){             // Determine time to display
+
+        LCD_display(display, 2,11, F("Z"));     // Display Zulu time
+        LCD_display(display, 2,12, zuluTime);
       } else {
-        LCD_display(lcd1, 3, 0, F("UTC time    "));
-        LCD_display(lcd1, 3,12, GPStime); 
-//        LCD_display(lcd2, 1, 0, F("UTC time    "));
-//        LCD_display(lcd2, 1,12, GPStime); 
+        LCD_display(display, 2,11, F("U"));     // Display UTC
+        LCD_display(display, 2,12, GPStime);
       }
       
-      LCD_display(lcd1, 0,13,locatorCode);      // display when signal present
+    /*                                          Display latitude / longitude */
+      LCD_display(display, 3, 0, GPS_lat);
+      LCD_display(display, 3,11, GPS_lon);
+
     } else {                                    // No GPS signal yet
-      LCD_display(lcd1, 3, 0, F("Waiting for GPS sat."));
-//      LCD_display(lcd2, 1, 0, F("Waiting for GPS sat."));
+
+      LCD_display(display, 0, 9, F("gps"));     // Lower case: no gps received
+
     }
     
     /* --------------------------------------------------------------------- *
@@ -298,6 +305,7 @@ void loop()
     /*                                    Establish current time in millis() */
     unsigned long currentMillis = millis();
     
+
     /*        Switch backlight on / off according to time and desired status */
     if(currentMillis - timePreviousMillis > timeInterval) {
       timePreviousMillis = currentMillis;
@@ -316,19 +324,20 @@ void loop()
     
     /*                         Switch backlight on / off according to status */
     if (boolBacklight) {
-      lcd1.backlight();
-//      lcd2.backlight();
+      display.backlight();
     } else {
-      lcd1.noBacklight();
-//      lcd2.noBacklight();
+      display.noBacklight();
     }
     
+
     /*                             Calculate 6 digit Maidenhead locator code */
     if(currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
       maidenheadPreviousMillis = currentMillis;
       calcMaidenhead();
+      LCD_display(display, 0,14, locatorCode);
     }
     
+
     /*                   Read and display temperature(s), but not every time */
     if(currentMillis - tempPreviousMillis > tempInterval) {
       tempPreviousMillis = currentMillis;
@@ -340,12 +349,14 @@ void loop()
       /*                            and 0 refers to the first IC on the wire */
       temp1 = sensors.getTempCByIndex(0);
 
-      /*                        Fill in temperature in template on display 1 */
-      LCD_display(lcd1, 1, 13, String(temp1));
+      /*                          Fill in temperature in template on display */
+      LCD_display(display, 1, 13, String(temp1));
     }
     
+
     /*                             Requesting GPS data every time around...  */
     requestGPS();
+
   }
 }
 
@@ -375,7 +386,7 @@ void calcMaidenhead() {
   int digOneSubSquare = remOneSquare / 0.083333;
   int digTwoSubSquare = remTwoSquare / 0.0416;
   
-  /*                                                    Display Locator code */
+  /*                                                     Create Locator code */
   locatorCode = String((char)('A' + numFirstLetter));
   locatorCode.concat(String((char)('A' + numSecondLetter)));
   locatorCode.concat(String(digOneSquare));
@@ -389,7 +400,7 @@ void calcMaidenhead() {
  *       Get info from the satellite and decode / format it     requestGPS()
  * ------------------------------------------------------------------------- */
 void requestGPS() {
-  unsigned long currentMillis = millis();
+  unsigned long currentMillis = millis();   // Establish current millis()
   
   if (gps.getUBX_packet())                  // valid GPS UBX packet received
   {
@@ -402,32 +413,30 @@ void requestGPS() {
       
       /*                                           Form UTC date from GPS    */
       GPSdate = "";
-      if (gps.utc_time.day < 10) {          // Leading zero?
-        GPSdate.concat("0");
-      }
-      GPSdate.concat(gps.utc_time.day);
-      
+      GPSdate.concat(gps.utc_time.year);
       GPSdate.concat("-");
+
       if (gps.utc_time.month < 10) {        // Leading zero?
         GPSdate.concat("0");
       }
       GPSdate.concat(gps.utc_time.month);
       GPSdate.concat("-");
-      GPSdate.concat(gps.utc_time.year);
+
+      if (gps.utc_time.day < 10) {          // Leading zero?
+        GPSdate.concat("0");
+      }
+      GPSdate.concat(gps.utc_time.day);
       
       /*                                           Form UTC time from GPS    */
       GPStime = "";
-
       if (gps.utc_time.hour < 10)           // Leading zero?
         GPStime.concat("0");
       GPStime.concat(gps.utc_time.hour);
-      
       GPStime.concat(":");
 
       if (gps.utc_time.minute < 10)         // Leading zero?
         GPStime.concat("0");
       GPStime.concat(gps.utc_time.minute);
-      
       GPStime.concat(":");
 
       if (gps.utc_time.second < 10)         // Leading zero?
@@ -460,11 +469,20 @@ void requestGPS() {
         GPS_latitude  = gps.location.latitude;
         GPS_longitude = gps.location.longitude;
         
-        /*                         Fill in lat/long in template on display 2 */
-// QQQQQQQQ
-//        LCD_display(lcd2, 2,10, String(GPS_latitude, 6));
-//        LCD_display(lcd2, 3,10, String(GPS_longitude, 6));
-        
+        /*                                            Form lat / lon strings */
+        if (GPS_latitude >= 10) {
+          GPS_lat = "";
+        } else {
+          GPS_lat = "0";
+        }
+        GPS_lat.concat( String(GPS_latitude, 6) );
+
+        if (GPS_longitude >= 10) {
+          GPS_lon = "";
+        } else {
+          GPS_lon = "0";
+        }
+        GPS_lon.concat( String(GPS_longitude, 6) );
       }
     
     } else {
@@ -485,45 +503,33 @@ void doInitialScreen(int s) {
   
   debugln("Entering doInitialScreen");
   
-  LCD_display(lcd1, 0, 0, F("PD1GAW ---- (JO33di)"));
-  LCD_display(lcd1, 1, 0, F("HAM-gadget vs.      "));
-  LCD_display(lcd1, 1, 15, progVersion);
-  LCD_display(lcd1, 2, 0, F("(c) Gerard Wassink  "));
-  LCD_display(lcd1, 3, 0, F("GNU public license  "));
+  LCD_display(display, 0, 0, F("PD1GAW        JO33di"));
+  LCD_display(display, 1, 0, F("HAM-gadget vs.      "));
+  LCD_display(display, 1, 15, progVersion);
+  LCD_display(display, 2, 0, F("(c) Gerard Wassink  "));
+  LCD_display(display, 3, 0, F("GNU public license  "));
 
-//  LCD_display(lcd2, 0, 0, F("Displaying:         "));
-//  LCD_display(lcd2, 1, 0, F("Room temperature    "));
-//  LCD_display(lcd2, 2, 0, F("GPS time, UTC/Local "));
-//  LCD_display(lcd2, 3, 0, F("Latitude / Longitude"));
-  
   delay(s * 1000);
   
-  doTemplates();
+  doTemplate();
 }
 
 
 /* ------------------------------------------------------------------------- *
- *       Paste templates                                       doTemplates()
+ *       Paste templates                                       doTemplate()
  * ------------------------------------------------------------------------- */
-void doTemplates()
+void doTemplate()
 {
   
-  debugln("Entering doTemplates");
+  debugln("Entering doTemplate");
   
   /* 
-   * Put template text on LCD 1 
+   * Put template text on display
    */
-  LCD_display(lcd1, 0, 0, F("PD1GAW ---- (      )"));
-  LCD_display(lcd1, 1, 0, F("Shack temp   _____ C"));
-  LCD_display(lcd1, 2, 0, F("Date        -  -    "));
-  LCD_display(lcd1, 3, 0, F("                    "));
-  /* 
-   * Put template on LCD 2 
-   */
-//  LCD_display(lcd2, 0, 0, F("Operator      Gerard"));
-//  LCD_display(lcd2, 1, 0, F("                    "));
-//  LCD_display(lcd2, 2, 0, F("Latitude            "));
-//  LCD_display(lcd2, 3, 0, F("Longitude           "));
+  LCD_display(display, 0, 0, F("PD1GAW        JO33di"));
+  LCD_display(display, 1, 0, F("Shack temp   _____ C"));
+  LCD_display(display, 2, 0, F("    -  -      -  -  "));
+  LCD_display(display, 3, 0, F("                    "));
   
 }
 
@@ -593,7 +599,7 @@ void doTimeMenu()
     switch (choice) {
       case '1': {
         boolTimeSwitch = UTC;
-        LCD_display(lcd1, 0, 0, F("OKAY :: UTC Time    "));
+        LCD_display(display, 0, 0, F("OKAY :: UTC Time    "));
         delay(500);
         displayTimeMenu();
         break;
@@ -601,7 +607,7 @@ void doTimeMenu()
       case '2': {
         boolTimeSwitch = LOCAL;
         boolSumWint    = WINTER;
-        LCD_display(lcd1, 1, 0, F("OKAY :: Wintertime  "));
+        LCD_display(display, 1, 0, F("OKAY :: Wintertime  "));
         delay(500);
         displayTimeMenu();
         break;
@@ -609,7 +615,7 @@ void doTimeMenu()
       case '3': {
         boolTimeSwitch = LOCAL;
         boolSumWint    = SUMMER;
-        LCD_display(lcd1, 2, 0, F("OKAY :: Summertime  "));
+        LCD_display(display, 2, 0, F("OKAY :: Summertime  "));
         delay(500);
         displayTimeMenu();
         break;
@@ -740,14 +746,14 @@ int enterOffset(bool season) {
   int col;
   
   // display options
-  LCD_display(lcd1, 0, 0, F("Adjusting offset for"));
+  LCD_display(display, 0, 0, F("Adjusting offset for"));
   if (season == WINTER) {
-    LCD_display(lcd1, 1, 0, F("wintertime          "));
+    LCD_display(display, 1, 0, F("wintertime          "));
   } else {
-    LCD_display(lcd1, 1, 0, F("summertime          "));
+    LCD_display(display, 1, 0, F("summertime          "));
   }
-  LCD_display(lcd1, 2, 0, F("use *for minus sign:"));
-  LCD_display(lcd1, 3, 0, msg);
+  LCD_display(display, 2, 0, F("use *for minus sign:"));
+  LCD_display(display, 3, 0, msg);
   
   // read and echo value (* for minus sign, # for enter)
   col = 0;
@@ -764,13 +770,13 @@ int enterOffset(bool season) {
       case '7':
       case '8':
       case '9':
-        LCD_display(lcd1, 3, col++, String(choice));
+        LCD_display(display, 3, col++, String(choice));
         v = 10 * v + choice - '0';
         break;
         
       case '*':
         negative = !negative;
-        LCD_display(lcd1, 3, col++, "-");
+        LCD_display(display, 3, col++, "-");
         break;
         
       case '#':
@@ -809,10 +815,10 @@ int enterIntValue() {
   int col;
   
   // display options
-  LCD_display(lcd1, 0, 0, F("Enter value         "));
-  LCD_display(lcd1, 1, 0, F("use *for minus sign:"));
-  LCD_display(lcd1, 2, 0, F("    #for ENTER      "));
-  LCD_display(lcd1, 3, 0, msg);
+  LCD_display(display, 0, 0, F("Enter value         "));
+  LCD_display(display, 1, 0, F("use *for minus sign:"));
+  LCD_display(display, 2, 0, F("    #for ENTER      "));
+  LCD_display(display, 3, 0, msg);
   
   // read and echo value (* for minus sign, # for enter)
   col = 0;
@@ -829,13 +835,13 @@ int enterIntValue() {
       case '7':
       case '8':
       case '9':
-        LCD_display(lcd1, 3, col++, String(choice));
+        LCD_display(display, 3, col++, String(choice));
         v = 10 * v + choice - '0';
         break;
         
       case '*':
         negative = !negative;
-        LCD_display(lcd1, 3, col++, "-");
+        LCD_display(display, 3, col++, "-");
         break;
         
       case '#':
@@ -877,14 +883,14 @@ void doSettingsMenu()
       }
       case '2': {
         storeSettings();
-        LCD_display(lcd1, 1, 0, F("OK, Settings stored "));
+        LCD_display(display, 1, 0, F("OK, Settings stored "));
         delay(500);
         displaySettingsMenu();
         break;
       }
       case '3': {
         getSettings();
-        LCD_display(lcd1, 2, 0, F("OK, Got Settings    "));
+        LCD_display(display, 2, 0, F("OK, Got Settings    "));
         delay(500);
         displaySettingsMenu();
         break;
@@ -914,27 +920,27 @@ void showSettings() {
   
   if (boolTimeSwitch == UTC) {
     
-    LCD_display(lcd1, 0, 0, F("Showing: UTC time   "));
-    LCD_display(lcd1, 1, 0, F("                    "));
-    LCD_display(lcd1, 2, 0, F("                    "));
-    LCD_display(lcd1, 3, 0, F("                    "));
+    LCD_display(display, 0, 0, F("Showing: UTC time   "));
+    LCD_display(display, 1, 0, F("                    "));
+    LCD_display(display, 2, 0, F("                    "));
+    LCD_display(display, 3, 0, F("                    "));
     
   } else {
     
     if (boolSumWint == WINTER) {
-      LCD_display(lcd1, 0, 0, F("Showing: winter time"));
+      LCD_display(display, 0, 0, F("Showing: winter time"));
     } else {
-      LCD_display(lcd1, 0, 0, F("Showing: summer time"));
+      LCD_display(display, 0, 0, F("Showing: summer time"));
     }
   }
     
-  LCD_display(lcd1, 1, 0, F("Offset wintertim    "));
-  LCD_display(lcd1, 1,17, String(winterTimeOffset));
+  LCD_display(display, 1, 0, F("Offset wintertim    "));
+  LCD_display(display, 1,17, String(winterTimeOffset));
   
-  LCD_display(lcd1, 2, 0, F("Offset summertim    "));
-  LCD_display(lcd1, 2,17, String(summerTimeOffset));
+  LCD_display(display, 2, 0, F("Offset summertim    "));
+  LCD_display(display, 2,17, String(summerTimeOffset));
   
-  LCD_display(lcd1, 3, 0, F("                    "));
+  LCD_display(display, 3, 0, F("                    "));
   
   while (!endLoop) {                        // Keep showing until '#' is pressed
     choice = keypad.getKey();
@@ -991,10 +997,10 @@ void getSettings() {
  * ------------------------------------------------------------------------- */
 void displayMainMenu()
 {
-  LCD_display(lcd1, 0, 0, F("1. Time Menu        "));
-  LCD_display(lcd1, 1, 0, F("2. Settings         "));
-  LCD_display(lcd1, 2, 0, F("3. Adjust PowerSave "));
-  LCD_display(lcd1, 3, 0, F("4. Credits / info   "));
+  LCD_display(display, 0, 0, F("1. Time Menu        "));
+  LCD_display(display, 1, 0, F("2. Settings         "));
+  LCD_display(display, 2, 0, F("3. Adjust PowerSave "));
+  LCD_display(display, 3, 0, F("4. Credits / info   "));
 }
 
 
@@ -1002,10 +1008,10 @@ void displayMainMenu()
  *       Show the time menu screen                         displayTimeMenu()
  * ------------------------------------------------------------------------- */
 void displayTimeMenu() {
-  LCD_display(lcd1, 0, 0, F("1. Show UTC Time    "));
-  LCD_display(lcd1, 1, 0, F("2. Local wintertime "));
-  LCD_display(lcd1, 2, 0, F("3. Local summertime "));
-  LCD_display(lcd1, 3, 0, F("4. Adjust offsets   "));
+  LCD_display(display, 0, 0, F("1. Show UTC Time    "));
+  LCD_display(display, 1, 0, F("2. Local wintertime "));
+  LCD_display(display, 2, 0, F("3. Local summertime "));
+  LCD_display(display, 3, 0, F("4. Adjust offsets   "));
 }
 
 
@@ -1013,10 +1019,10 @@ void displayTimeMenu() {
  *       Show the adjsut time offest menu screen         displayAdjustMenu()
  * ------------------------------------------------------------------------- */
 void displayAdjustMenu() {
-  LCD_display(lcd1, 0, 0, F("Adjust Time Offsets "));
-  LCD_display(lcd1, 1, 0, F("1. Adjust wintertime"));
-  LCD_display(lcd1, 2, 0, F("2. Adjust summertime"));
-  LCD_display(lcd1, 3, 0, msg);
+  LCD_display(display, 0, 0, F("Adjust Time Offsets "));
+  LCD_display(display, 1, 0, F("1. Adjust wintertime"));
+  LCD_display(display, 2, 0, F("2. Adjust summertime"));
+  LCD_display(display, 3, 0, msg);
   msg = F("                    ");
 }
 
@@ -1025,10 +1031,10 @@ void displayAdjustMenu() {
  *       Show the settings menu screen                 displaySettingsMenu()
  * ------------------------------------------------------------------------- */
 void displaySettingsMenu() {
-  LCD_display(lcd1, 0, 0, F("1. Show settings    "));
-  LCD_display(lcd1, 1, 0, F("2. Store settings   "));
-  LCD_display(lcd1, 2, 0, F("3. Retrieve settings"));
-  LCD_display(lcd1, 3, 0, F("                    "));
+  LCD_display(display, 0, 0, F("1. Show settings    "));
+  LCD_display(display, 1, 0, F("2. Store settings   "));
+  LCD_display(display, 2, 0, F("3. Retrieve settings"));
+  LCD_display(display, 3, 0, F("                    "));
 }
   
 
@@ -1036,15 +1042,15 @@ void displaySettingsMenu() {
  *       Show the power savings menun                 displayPowerSaveMenu()
  * ------------------------------------------------------------------------- */
 void displayPowerSaveMenu() {
-  LCD_display(lcd1, 0, 0, F("Adjust PowerSave    "));
-  LCD_display(lcd1, 1, 0, F("1. OnHour           "));
-  LCD_display(lcd1, 1,11, F("         "));
-  LCD_display(lcd1, 1,11, String(backlightOnHour));
-  LCD_display(lcd1, 2, 0, F("2. OffHour          "));
-  LCD_display(lcd1, 2,11, F("         "));
-  LCD_display(lcd1, 2,11, String(backlightOffHour));
-  LCD_display(lcd1, 3, 0, F("                    "));
-  LCD_display(lcd1, 3, 0, msg);
+  LCD_display(display, 0, 0, F("Adjust PowerSave    "));
+  LCD_display(display, 1, 0, F("1. OnHour           "));
+  LCD_display(display, 1,11, F("         "));
+  LCD_display(display, 1,11, String(backlightOnHour));
+  LCD_display(display, 2, 0, F("2. OffHour          "));
+  LCD_display(display, 2,11, F("         "));
+  LCD_display(display, 2,11, String(backlightOffHour));
+  LCD_display(display, 3, 0, F("                    "));
+  LCD_display(display, 3, 0, msg);
   msg = F("                    ");
 }
   
@@ -1075,17 +1081,14 @@ void setup()
   
   /*                                              Initialize several objects */
   
-  lcd1.init();                              // Initialize LCD Screen 1
-//  lcd2.init();                              // Initialize LCD Screen 1
-
-  lcd1.backlight();                         // Backlights on by default
-//  lcd2.backlight();                         // Backlights on by default
+  display.init();                              // Initialize display
+  display.backlight();                         // Backlights on by default
 
   /*                        Does user want to retrieve settings from EEPROM? */
-  LCD_display(lcd1, 0, 0, F("Load settings?      "));
-  LCD_display(lcd1, 1, 0, F(" (*) yes   (default)"));
-  LCD_display(lcd1, 2, 0, F(" (#) no             "));
-  LCD_display(lcd1, 3, 0, F("Your choice please: "));
+  LCD_display(display, 0, 0, F("Load settings?      "));
+  LCD_display(display, 1, 0, F(" (*) yes   (default)"));
+  LCD_display(display, 2, 0, F(" (#) no             "));
+  LCD_display(display, 3, 0, F("Your choice please: "));
   
   bootQuestionPreviousMillis = currentMillis;
   while (!endLoop) {
@@ -1109,7 +1112,7 @@ void setup()
     delay(100);
     
     /*             User gets maximum of bootQuestionInterval time to react   */
-    /*     if no answer, default is NOT to retreive the settings from EEPROM */
+    /*         if no answer, default is to retreive the settings from EEPROM */
     if(currentMillis - bootQuestionPreviousMillis > bootQuestionInterval) {
       bootQuestionPreviousMillis = currentMillis;
       

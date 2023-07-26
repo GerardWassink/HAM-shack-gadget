@@ -68,9 +68,12 @@
  *   3.6    Possibility to switch bewtween date/time and lat/long combo
  *   4.0    Release version single screen
  *   4.1    Correction for temperature display
+ *   4.2    Solved issues:
+ *          #1 - Temperature value when no temp read yet
+ *          #2 - Dynamic locator shown in Credits screen
  *   
  * ------------------------------------------------------------------------- */
-#define progVersion "4.1"                   // Program version definition
+#define progVersion "4.2"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -246,7 +249,7 @@ Settings mySettings;                        // Create the object
   
   String msg = "                    ";      // Initial value for screen message
   
-  String locatorCode = "";                  // Maidenhead locator code
+  String locatorCode = "__NO__";            // Maidenhead locator code
   
   
 /* ------------------------------------------------------------------------- *
@@ -254,6 +257,7 @@ Settings mySettings;                        // Create the object
  * ------------------------------------------------------------------------- */
 void loop()
 {
+  unsigned long currentMillis;
   /* 
    * Read key from keypad
    */
@@ -281,7 +285,11 @@ void loop()
     }
     
   } else {                                      // no key received:
-    
+
+    requestGPS();                               // Requestg GPS data
+
+    currentMillis = millis();
+
     /* --------------------------------------------------------------------- *
      * Display UTC / QTH date & time according to status
      * --------------------------------------------------------------------- */
@@ -295,7 +303,6 @@ void loop()
         LCD_display(display, 2,10, GPSdate);              // Display date
       
         if (boolTimeSwitch == LOCAL){                     // Determine time to display
-
           LCD_display(display, 3, 0, F("Local time: "));  // Display Zulu time
           LCD_display(display, 3,12, zuluTime);
         } else {
@@ -304,11 +311,16 @@ void loop()
         }
 
       } else {
-      /*                                          Display latitude / longitude */
-        LCD_display(display, 2, 0, F("Latitude:  "));     // Display latitude
-        LCD_display(display, 2,11, GPS_lat);
-        LCD_display(display, 3, 0, F("Longitude: "));     // Display longitude
-        LCD_display(display, 3,11, GPS_lon);
+
+        /*                                          Display latitude / longitude */
+        if(currentMillis - latlongPreviousMillis  > timeInterval) {
+          latlongPreviousMillis  = currentMillis;
+          LCD_display(display, 2, 0, F("Latitude:           "));
+          LCD_display(display, 2,11, GPS_lat);
+          LCD_display(display, 3, 0, F("Longitude:          "));
+          LCD_display(display, 3,11, GPS_lon);
+        }
+
       }
 
     } else {                                    // No GPS signal yet
@@ -321,12 +333,10 @@ void loop()
      *                                                          Timed events
      * --------------------------------------------------------------------- */
     
-    /*                                    Establish current time in millis() */
-    unsigned long currentMillis = millis();
-    
+    currentMillis = millis();                   // Current time in millis()
 
     /*        Switch backlight on / off according to time and desired status */
-    if(currentMillis - timePreviousMillis > timeInterval) {
+    if (currentMillis - timePreviousMillis > timeInterval) {
       timePreviousMillis = currentMillis;
       
       if (currentHour != prevCurrentHour) {     // We have an hour-change
@@ -341,7 +351,6 @@ void loop()
       }
     }
     
-    /*                         Switch backlight on / off according to status */
     if (boolBacklight) {
       display.backlight();
     } else {
@@ -349,37 +358,121 @@ void loop()
     }
     
 
-    /*                             Calculate 6 digit Maidenhead locator code */
-    if(currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
+    /* --------------------------------------------------------------------- *
+     *                             Calculate 6 digit Maidenhead locator code *
+     * --------------------------------------------------------------------- */
+    if (currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
       maidenheadPreviousMillis = currentMillis;
       calcMaidenhead();
       LCD_display(display, 0,14, locatorCode);
     }
     
 
-    /*                   Read and display temperature(s), but not every time */
-    if(currentMillis - tempPreviousMillis > tempInterval) {
+    /* --------------------------------------------------------------------- *
+     *                   Read and display temperature(s), but not every time *
+     * --------------------------------------------------------------------- */
+    if (currentMillis - tempPreviousMillis > tempInterval) {
       tempPreviousMillis = currentMillis;
-
       /*         Requesting temperatures, only at tempInterval milli-seconds */
       sensors.requestTemperatures();
-
       /*  Why "byIndex"? You can have more than one DS18B20 on the same bus, */
       /*                            and 0 refers to the first IC on the wire */
       temp1 = sensors.getTempCByIndex(0);
-
-      /*                          Fill in temperature in template on display */
-      LCD_display(display, 1, 13, String(temp1,2));
+      /*                Sensor library returns -127 when no sensor connected */
+      if (temp1 == DEVICE_DISCONNECTED_C) {
+        /*                    No temperature abailable, just display "_____" */
+        LCD_display(display, 1, 13, F("_____") );
+      } else {
+        /*                        Fill in temperature in template on display */
+        LCD_display(display, 1, 13, String(temp1,2));
+      }
       LCD_display(display, 1, 18, F(" C") );
     }
-    
-
-    /*                             Requesting GPS data every time around...  */
-    requestGPS();
 
   }
 }
 
+
+/* ------------------------------------------------------------------------- *
+ *       Get info from the satellite and decode / format it     requestGPS()
+ * ------------------------------------------------------------------------- */
+void requestGPS() {
+  unsigned long currentMillis = millis();       // Establish current millis()
+  
+  if (gps.getUBX_packet())                      // valid GPS UBX packet received
+  {
+    signalReceived = true;
+    gps.parse_ubx_data();                       // Parse new GPS data
+    
+    if (gps.utc_time.valid)                     // Valid utc_time data passed ?
+    {
+      debugln(F("GPS time received successfully"));
+
+      GPSdate = "";                             // Form UTC date from GPS
+      GPSdate.concat(gps.utc_time.year);
+      GPSdate.concat("-");
+      if (gps.utc_time.month < 10) GPSdate.concat("0");
+      GPSdate.concat(gps.utc_time.month);
+      GPSdate.concat("-");
+      if (gps.utc_time.day < 10) GPSdate.concat("0");
+      GPSdate.concat(gps.utc_time.day);
+
+      GPStime = "";                             // Form UTC time from GPS
+      if (gps.utc_time.hour < 10)   GPStime.concat("0");
+      GPStime.concat(gps.utc_time.hour);
+      GPStime.concat(":");
+      if (gps.utc_time.minute < 10) GPStime.concat("0");
+      GPStime.concat(gps.utc_time.minute);
+      GPStime.concat(":");
+      if (gps.utc_time.second < 10) GPStime.concat("0");
+      GPStime.concat(gps.utc_time.second);
+      
+
+      /* --------------------------------------------------------------------- *
+      * Calculate and form local time from GPS time
+      * Adding offset for summer or wintertime,
+      * I know, it's a very crude method...
+      * --------------------------------------------------------------------- */
+      zuluTime = "";
+      int zuluHour = 0;
+      if (boolSumWint) {
+        zuluHour = gps.utc_time.hour + winterTimeOffset;
+      } else {
+        zuluHour = gps.utc_time.hour + summerTimeOffset;
+      }
+      if (zuluHour < 10) zuluTime.concat("0");
+      zuluTime.concat(zuluHour);
+      zuluTime.concat(GPStime.substring(2,10));
+      /*                           use local time to switch display on / off */
+      currentHour = zuluHour;
+      
+      
+      
+      /* --------------------------------------------------------------------- *
+       * Look for latitude /longtitude
+       * --------------------------------------------------------------------- */
+      GPS_latitude  = gps.location.latitude;
+      GPS_longitude = gps.location.longitude;
+      /*                                            Form lat / lon strings */
+      GPS_lat = "";
+      if (GPS_latitude < 10) GPS_lat = "0";
+      GPS_lat.concat( String(GPS_latitude, 6) );
+
+      GPS_lon = "";
+      if (GPS_longitude < 10) GPS_lon = "0";
+      GPS_lon.concat( String(GPS_longitude, 6) );
+
+    } else {
+    
+      debugln(F("error receiving GPS packet"));
+      signalReceived = false;
+      GPStime = "  :  :  ";
+      zuluTime = "  :  :  ";
+    }
+
+  }
+}
+  
 
 /* ------------------------------------------------------------------------- *
  *       Routine to calculate 6 digit Maidenhead locator    calcMaidenhead()
@@ -417,113 +510,14 @@ void calcMaidenhead() {
 
 
 /* ------------------------------------------------------------------------- *
- *       Get info from the satellite and decode / format it     requestGPS()
- * ------------------------------------------------------------------------- */
-void requestGPS() {
-  unsigned long currentMillis = millis();   // Establish current millis()
-  
-  if (gps.getUBX_packet())                  // valid GPS UBX packet received
-  {
-    gps.parse_ubx_data();                   // Parse new GPS data
-    signalReceived = true;
-    
-    if (gps.utc_time.valid)                 // Valid utc_time data passed ?
-    {
-      debugln(F("GPS time received successfully"));
-      
-      /*                                           Form UTC date from GPS    */
-      GPSdate = "";
-      GPSdate.concat(gps.utc_time.year);
-      GPSdate.concat("-");
-
-      if (gps.utc_time.month < 10) {        // Leading zero?
-        GPSdate.concat("0");
-      }
-      GPSdate.concat(gps.utc_time.month);
-      GPSdate.concat("-");
-
-      if (gps.utc_time.day < 10) {          // Leading zero?
-        GPSdate.concat("0");
-      }
-      GPSdate.concat(gps.utc_time.day);
-      
-      /*                                           Form UTC time from GPS    */
-      GPStime = "";
-      if (gps.utc_time.hour < 10)           // Leading zero?
-        GPStime.concat("0");
-      GPStime.concat(gps.utc_time.hour);
-      GPStime.concat(":");
-
-      if (gps.utc_time.minute < 10)         // Leading zero?
-        GPStime.concat("0");
-      GPStime.concat(gps.utc_time.minute);
-      GPStime.concat(":");
-
-      if (gps.utc_time.second < 10)         // Leading zero?
-        GPStime.concat("0");
-      GPStime.concat(gps.utc_time.second);
-      
-      /* 
-       * Calculate and form local time from GPS time
-       * Adding offset for summer or wintertime,
-       * I know, it's a very crude method...
-       */
-      zuluTime = "";
-      int zuluHour = 0;
-      if (boolSumWint) {
-        zuluHour = gps.utc_time.hour + winterTimeOffset;
-      } else {
-        zuluHour = gps.utc_time.hour + summerTimeOffset;
-      }
-      if (zuluHour < 10) zuluTime.concat("0");
-      zuluTime.concat(zuluHour);
-      zuluTime.concat(GPStime.substring(2,10));
-      
-      /*                           use local time to switch display on / off */
-      currentHour = zuluHour;
-      
-      /*                                       Look for latitude /longtitude */
-      if(currentMillis - latlongPreviousMillis > latLongInterval) {
-        latlongPreviousMillis = currentMillis;         // save the last time we displayed
-        
-        GPS_latitude  = gps.location.latitude;
-        GPS_longitude = gps.location.longitude;
-        
-        /*                                            Form lat / lon strings */
-        if (GPS_latitude >= 10) {
-          GPS_lat = "";
-        } else {
-          GPS_lat = "0";
-        }
-        GPS_lat.concat( String(GPS_latitude, 6) );
-
-        if (GPS_longitude >= 10) {
-          GPS_lon = "";
-        } else {
-          GPS_lon = "0";
-        }
-        GPS_lon.concat( String(GPS_longitude, 6) );
-      }
-    
-    } else {
-    
-      debugln(F("error receiving GPS time"));
-      signalReceived = false;
-      GPStime = "  :  :  ";
-      zuluTime = "  :  :  ";
-    }
-  }
-}
-  
-
-/* ------------------------------------------------------------------------- *
  *       Show initial screen, then paste template          doInitialScreen()
  * ------------------------------------------------------------------------- */
 void doInitialScreen(int s) {
   
   debugln("Entering doInitialScreen");
   
-  LCD_display(display, 0, 0, F("PD1GAW        JO33di"));
+  LCD_display(display, 0, 0, F("PD1GAW        __NO__"));
+  LCD_display(display, 0,14, locatorCode);
   LCD_display(display, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(display, 1, 15, progVersion);
   LCD_display(display, 2, 0, F("(c) Gerard Wassink  "));
@@ -546,7 +540,7 @@ void doTemplate()
   /* 
    * Put template text on display
    */
-  LCD_display(display, 0, 0, F("PD1GAW        JO33di"));
+  LCD_display(display, 0, 0, F("PD1GAW        __NO__"));
   LCD_display(display, 1, 0, F("Shack temp   _____ C"));
   LCD_display(display, 2, 0, F("                    "));
   LCD_display(display, 3, 0, F("                    "));

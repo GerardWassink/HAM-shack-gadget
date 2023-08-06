@@ -75,8 +75,9 @@
  *            (not dependent on received signal anymore)
  *          Only calculate Maidenhead when signal received
  *          Increased interval to display lat/long to 5 seconds
+ *   4.4    Some code cleanup and small improvements
  * ------------------------------------------------------------------------- */
-#define progVersion "4.3"                   // Program version definition
+#define progVersion "4.4"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -140,8 +141,9 @@
  *       Other definitions
  * ------------------------------------------------------------------------- */
 #define GPSbaud 9600                        // Baud rate to/from GPS
+
 #define tempInterval 5000                   // time between temp requests
-#define latLongInterval 1000                // time between lat/long displays
+#define latLongInterval 5000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 #define maidenheadInterval 11000            // time between Maidenhaid calculations
 #define timeInterval 1000                   // time between time calculations
@@ -240,12 +242,13 @@ Settings mySettings;                        // Create the object
   double GPS_longitude;                     // Longitude from GPS
   String GPS_lat = "__.______";             // String latitude
   String GPS_lon = "__.______";             // String Longitude
-  
-  long tempPreviousMillis = 5000;           // Make timeouts work first time
-  long latlongPreviousMillis = 5000;        // Make timeouts work first time
-  long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
-  long maidenheadPreviousMillis = 5000;     // Make timeouts work first time
-  long timePreviousMillis = timeInterval + 1; // Make timeouts work first time
+
+                                            // Make timeouts work first time  
+  long tempPreviousMillis = tempInterval + 1;
+  long latlongPreviousMillis = latLongInterval + 1;
+  long bootQuestionPreviousMillis = bootQuestionInterval + 1;
+  long maidenheadPreviousMillis = maidenheadInterval + 1;
+  long timePreviousMillis = timeInterval + 1;
 
   int summerTimeOffset = +2;                // Summer time offset from UTC (Dutch)
   int winterTimeOffset = +1;                // Winter time offset from UTC (Dutch)
@@ -448,9 +451,10 @@ void requestGPS() {
       } else {
         zuluHour = gps.utc_time.hour + summerTimeOffset;
       }
-      if (zuluHour < 10) zuluTime.concat("0");
+      if (zuluHour < 10) zuluTime.concat("0");  // leading zero
       zuluTime.concat(zuluHour);
       zuluTime.concat(GPStime.substring(2,10));
+
       /*                           use local time to switch display on / off */
       currentHour = zuluHour;
       
@@ -474,8 +478,8 @@ void requestGPS() {
     
       debugln(F("error receiving GPS packet"));
       signalReceived = false;
-      GPStime = "  :  :  ";
-      zuluTime = "  :  :  ";
+      GPStime = "__:__:__";
+      zuluTime = "__:__:__";
     }
 
   }

@@ -71,9 +71,12 @@
  *   4.2    Solved issues:
  *          #1 - Temperature value when no temp read yet
  *          #2 - Dynamic locator shown in Credits screen
- *   
+ *   4.3    Display switch from date/time to lat/lon improved
+ *            (not dependent on received signal anymore)
+ *          Only calculate Maidenhead when signal received
+ *          Increased interval to display lat/long to 5 seconds
  * ------------------------------------------------------------------------- */
-#define progVersion "4.2"                   // Program version definition
+#define progVersion "4.3"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -141,7 +144,7 @@
 #define latLongInterval 1000                // time between lat/long displays
 #define bootQuestionInterval 9000           // wait time for bootup question
 #define maidenheadInterval 11000            // time between Maidenhaid calculations
-#define timeInterval 1300                   // time between time calculations
+#define timeInterval 1000                   // time between time calculations
 
 #define ON true                             // Values determining
 #define OFF false                           //   true or false
@@ -229,17 +232,17 @@ Settings mySettings;                        // Create the object
   
   bool timeGpsSwitch = TIME;                // Indicate summer / winter time
   
-  String GPSdate;                           // Date from GPS
-  String GPStime;                           // Time from GPS
-  String zuluTime;                          // Local time derived from GPS time
+  String GPSdate = "____-__-__";            // Date from GPS
+  String GPStime = "__:__:__";              // Time from GPS
+  String zuluTime = "__:__:__";             // Local time derived from GPS time
   
   double GPS_latitude;                      // Latitude from GPS
   double GPS_longitude;                     // Longitude from GPS
-  String GPS_lat;                           // String latitude
-  String GPS_lon;                           // String Longitude
+  String GPS_lat = "__.______";             // String latitude
+  String GPS_lon = "__.______";             // String Longitude
   
   long tempPreviousMillis = 5000;           // Make timeouts work first time
-  long latlongPreviousMillis = 1000;        // Make timeouts work first time
+  long latlongPreviousMillis = 5000;        // Make timeouts work first time
   long bootQuestionPreviousMillis = 3000;   // Make timeouts work first time
   long maidenheadPreviousMillis = 5000;     // Make timeouts work first time
   long timePreviousMillis = timeInterval + 1; // Make timeouts work first time
@@ -286,22 +289,19 @@ void loop()
     
   } else {                                      // no key received:
 
-    requestGPS();                               // Requestg GPS data
-
     currentMillis = millis();
 
     /* --------------------------------------------------------------------- *
-     * Display UTC / QTH date & time according to status
-     * --------------------------------------------------------------------- */
-    if (signalReceived) {                       // GPS sat in the picture yet?
+      * Display UTC / QTH date & time according to status
+      * or GPS coordinates, depending on switch
+      * --------------------------------------------------------------------- */
+    if (timeGpsSwitch == TIME) {
 
-      LCD_display(display, 0, 9, F("GPS"));     // Upper case: gps received
-
-      if (timeGpsSwitch == TIME) {
-
+      if(currentMillis - timePreviousMillis  > timeInterval) {
+        timePreviousMillis  = currentMillis;
         LCD_display(display, 2, 0, F("GPS date:") );      // Display date
         LCD_display(display, 2,10, GPSdate);              // Display date
-      
+
         if (boolTimeSwitch == LOCAL){                     // Determine time to display
           LCD_display(display, 3, 0, F("Local time: "));  // Display Zulu time
           LCD_display(display, 3,12, zuluTime);
@@ -309,26 +309,32 @@ void loop()
           LCD_display(display, 3, 0, F("UTC time:   "));  // Display UTC time
           LCD_display(display, 3,12, GPStime);
         }
-
-      } else {
-
-        /*                                          Display latitude / longitude */
-        if(currentMillis - latlongPreviousMillis  > timeInterval) {
-          latlongPreviousMillis  = currentMillis;
-          LCD_display(display, 2, 0, F("Latitude:           "));
-          LCD_display(display, 2,11, GPS_lat);
-          LCD_display(display, 3, 0, F("Longitude:          "));
-          LCD_display(display, 3,11, GPS_lon);
-        }
-
       }
 
-    } else {                                    // No GPS signal yet
-
-      LCD_display(display, 0, 9, F("gps"));     // Lower case: no gps received
+    } else {
+      /*                                          Display latitude / longitude */
+      if(currentMillis - latlongPreviousMillis  > latLongInterval) {
+        latlongPreviousMillis  = currentMillis;
+        LCD_display(display, 2, 0, F("Latitude:           "));
+        LCD_display(display, 2,11, GPS_lat);
+        LCD_display(display, 3, 0, F("Longitude:          "));
+        LCD_display(display, 3,11, GPS_lon);
+      }
 
     }
+
+    requestGPS();                               // Request GPS data
+
+    /* --------------------------------------------------------------------- *
+     * Display UTC / QTH date & time according to status
+     * --------------------------------------------------------------------- */
+    if (signalReceived) {                       // GPS sat in the picture yet?
+      LCD_display(display, 0, 9, F("GPS"));     // Upper case: gps received
+    } else {                                    // No GPS signal yet
+      LCD_display(display, 0, 9, F("gps"));     // Lower case: no gps received
+    }
     
+
     /* --------------------------------------------------------------------- *
      *                                                          Timed events
      * --------------------------------------------------------------------- */
@@ -361,10 +367,12 @@ void loop()
     /* --------------------------------------------------------------------- *
      *                             Calculate 6 digit Maidenhead locator code *
      * --------------------------------------------------------------------- */
-    if (currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
-      maidenheadPreviousMillis = currentMillis;
-      calcMaidenhead();
-      LCD_display(display, 0,14, locatorCode);
+    if (signalReceived) {                       // GPS sat in the picture yet?
+      if (currentMillis - maidenheadPreviousMillis > maidenheadInterval) {
+        maidenheadPreviousMillis = currentMillis;
+        calcMaidenhead();
+        LCD_display(display, 0,14, locatorCode);
+      }
     }
     
 

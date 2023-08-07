@@ -80,8 +80,11 @@
  *          Increased interval to display lat/long to 5 seconds
  *   4.4    Some code cleanup and small improvements
  *   4.5    No functional changes, just cleanup comments
+ *
+ *   5.0    Release 5, based on version 4.5
+ *
  * ------------------------------------------------------------------------- */
-#define progVersion "4.5"                   // Program version definition
+#define progVersion "5.0"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *

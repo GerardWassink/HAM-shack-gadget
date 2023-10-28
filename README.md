@@ -5,8 +5,8 @@ This project is about building a gadget for use in the HAM shack. In the prototy
 
 After that first stage I switched to an ATMEGA328P chip and built it and it's surrounding hardware onto a generic PCB board.
 
-- The gadget allowed for the connection of two temperature sensors. I.E. one for room temperature, the other for the outside temp(?)
-- Date and time are received from the GPS satellite, as are the latitude and longitude.
+- The gadget allows for the connection of a temperature sensor
+- Date and time are received from the GPS satellite, as are the latitude and longitude
 - I connected a 4x4 matrix keyboard to be able to do some functions
 
 For more information see the PDF description.

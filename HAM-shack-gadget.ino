@@ -479,8 +479,7 @@ void requestGPS() {
       zuluTime.concat(GPStime.substring(2,10));
 
                                             // use local time to switch 
-                                            //  display on / off */
-      currentHour = zuluHour;
+      currentHour = zuluHour;               //  display on / off 
       
       
       
@@ -553,7 +552,7 @@ void doInitialScreen(int s) {
   debugln("Entering doInitialScreen");
   
   LCD_display(display, 0, 0, Callsign);
-  LCD_display(display, 0, 7, F("      __NO__"));
+  LCD_display(display, 0, 7, F("       __NO__"));
   LCD_display(display, 0,14, locatorCode);
   LCD_display(display, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(display, 1, 15, progVersion);
@@ -579,7 +578,7 @@ void doTemplate()
    */
   LCD_display(display, 0, 0, "        ");
   LCD_display(display, 0, 0, Callsign);
-  LCD_display(display, 0, 7, F("      __NO__"));
+  LCD_display(display, 0, 7, F("       __NO__"));
   LCD_display(display, 1, 0, F("Shack temp   _____ C"));
   LCD_display(display, 2, 0, F("                    "));
   LCD_display(display, 3, 0, F("                    "));
@@ -588,7 +587,7 @@ void doTemplate()
                                             // Display date
     LCD_display(display, 2, 0, F("GPS date:") );
     
-    if (boolTimeSwitch == LOCAL){
+    if (boolTimeSwitch == LOCAL) {
                                             // Display Zulu time
       LCD_display(display, 3, 0, F("Local time: "));
     } else {
@@ -898,16 +897,8 @@ int enterIntValue() {
   while (!endLoop) {
     choice = keypad.getKey();
     switch (choice) {
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
+      
+      case '0' ... '9':
         LCD_display(display, 3, col++, String(choice));
         v = 10 * v + choice - '0';
         break;

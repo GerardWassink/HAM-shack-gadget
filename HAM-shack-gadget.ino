@@ -83,8 +83,10 @@
  *
  *   5.0    Release 5, based on version 4.5
  *
+ *   5.1    Build in ask for Callsign (was hard-coded)
+ *
  * ------------------------------------------------------------------------- */
-#define progVersion "5.0"                   // Program version definition
+#define progVersion "5.1"                   // Program version definition
 /* ------------------------------------------------------------------------- *
  *             GNU LICENSE CONDITIONS
  * ------------------------------------------------------------------------- *
@@ -168,6 +170,8 @@
 #define TIME true                           // Values determining
 #define GPS false                           //   display of time or coord's
 
+#define CALLSIGN_BUFFER_SIZE 9               // for serial read
+
 /* ------------------------------------------------------------------------- *
  *       Definitions for the keyboard
  * ------------------------------------------------------------------------- */
@@ -183,7 +187,8 @@ DallasTemperature sensors(&oneWire);        // Pass oneWire reference to Dallas
 /* ------------------------------------------------------------------------- *
  *       Create objects with addres(ses) for the LCD screen
  * ------------------------------------------------------------------------- */
-LiquidCrystal_I2C display(0x27,20,4);          // Initialize display
+//LiquidCrystal_I2C display(0x27,20,4);          // Initialize display
+LiquidCrystal_I2C display(0x24,20,4);          // Initialize display
 
 /* ------------------------------------------------------------------------- *
  *       Create objects for GPS module
@@ -201,13 +206,12 @@ struct Settings {
   int  timeOffsetNoDST;                     // to store local time offset
   int  backlightOnHour;                     // to store backlight On value
   int  backlightOffHour;                    // to store backlight Off value
+  char Callsign[9];                         // to store Callsign
 };
 Settings mySettings;                        // Create the object
 
 /* ------------------------------------------------------------------------- *
  *       Define keypad variables
- *       columns  1-4  connected to pins D13, D12, D11, D10
- *       row      1-4  connected to pins D9, D8, D7, D6
  * ------------------------------------------------------------------------- */
   char keys[ROWS][COLS] = {
     {'1','2','3','A'},
@@ -241,9 +245,11 @@ Settings mySettings;                        // Create the object
   
   bool timeGpsSwitch = TIME;                // Display time or GPS Coord's
   
-  String GPSdate  = "____-__-__";           // Date from GPS
-  String GPStime  = "__:__:__";             // Time from GPS
-  String zuluTime = "__:__:__";             // Local time derived from GPS time
+  String Callsign  = "PD1GAW  ";            // CallSign
+
+  String GPSdate   = "____-__-__";          // Date from GPS
+  String GPStime   = "__:__:__";            // Time from GPS
+  String zuluTime  = "__:__:__";            // Local time derived from GPS time
   
   double GPS_latitude;                      // Latitude from GPS
   double GPS_longitude;                     // Longitude from GPS
@@ -263,7 +269,8 @@ Settings mySettings;                        // Create the object
   String msg = "                    ";      // Initial value for screen message
   
   String locatorCode = "__NO__";            // Maidenhead locator code
-  
+
+
   
 /* ------------------------------------------------------------------------- *
  *       Main routine, repeating loop                                 loop()
@@ -545,7 +552,8 @@ void doInitialScreen(int s) {
   
   debugln("Entering doInitialScreen");
   
-  LCD_display(display, 0, 0, F("PD1GAW        __NO__"));
+  LCD_display(display, 0, 0, Callsign);
+  LCD_display(display, 0, 7, F("      __NO__"));
   LCD_display(display, 0,14, locatorCode);
   LCD_display(display, 1, 0, F("HAM-gadget vs.      "));
   LCD_display(display, 1, 15, progVersion);
@@ -569,7 +577,9 @@ void doTemplate()
   /* 
    * Put template text on display
    */
-  LCD_display(display, 0, 0, F("PD1GAW        __NO__"));
+  LCD_display(display, 0, 0, "        ");
+  LCD_display(display, 0, 0, Callsign);
+  LCD_display(display, 0, 7, F("      __NO__"));
   LCD_display(display, 1, 0, F("Shack temp   _____ C"));
   LCD_display(display, 2, 0, F("                    "));
   LCD_display(display, 3, 0, F("                    "));
@@ -959,6 +969,11 @@ void doSettingsMenu()
         break;
       }
       case '4': {
+        getCallsign();
+        displaySettingsMenu();
+        delay(500);
+        LCD_display(display, 3, 0, F("OK, Got Callsign    "));
+        displaySettingsMenu();
         break;
       }
       case '#': {
@@ -1026,6 +1041,11 @@ void storeSettings() {
   mySettings.backlightOnHour  = backlightOnHour;
   mySettings.backlightOffHour = backlightOffHour;
 
+  for (int i=0; i<8; i++){
+    mySettings.Callsign[i]    = Callsign[i];
+  }
+  Callsign[8] = '\0';
+
                                             // Store mySettings structure 
                                             //  to EEPROM
   EEPROM.put(0, mySettings);
@@ -1049,6 +1069,9 @@ void getSettings() {
   summerTimeOffset  = mySettings.timeOffsetNoDST;
   backlightOnHour   = mySettings.backlightOnHour;
   backlightOffHour  = mySettings.backlightOffHour;
+  for (int i=0; i<8; i++){
+    Callsign[i] = mySettings.Callsign[i];
+  }
 }
 
 
@@ -1094,7 +1117,7 @@ void displaySettingsMenu() {
   LCD_display(display, 0, 0, F("1. Show settings    "));
   LCD_display(display, 1, 0, F("2. Store settings   "));
   LCD_display(display, 2, 0, F("3. Retrieve settings"));
-  LCD_display(display, 3, 0, F("                    "));
+  LCD_display(display, 3, 0, F("4. Enter Callsign   "));
 }
   
 
@@ -1113,6 +1136,7 @@ void displayPowerSaveMenu() {
   LCD_display(display, 3, 0, msg);
   msg = F("                    ");
 }
+
   
 
 /* ------------------------------------------------------------------------- *
@@ -1135,7 +1159,7 @@ void setup()
   
                                             // Start debugging
                                             //  when so defined
-  debugstart(115200);
+  Serial.begin(115200);
   debug("HAM-gadget version ");
   debug(progVersion);
   debugln(" - debugging start");
@@ -1145,7 +1169,8 @@ void setup()
   display.init();                           // Initialize display
   display.backlight();                      // Backlights on by default
 
-                                            // Does user want to retrieve 
+                                            // Does user want to retrieve PD2DK
+
                                             //  settings from EEPROM?
   LCD_display(display, 0, 0, F("Load settings?      "));
   LCD_display(display, 1, 0, F(" (*) yes   (default)"));
@@ -1197,4 +1222,77 @@ void setup()
   gps.begin(GPSbaud);                       // Set up GPS to communicate over serial
   gps.setUBXNav();                          // Enable UBX navigation messages from GPS
   
+}
+
+
+
+/* ------------------------------------------------------------------------- *
+ *       Read new Callsign from serial
+ * ------------------------------------------------------------------------- */
+void getCallsign() {
+
+  char    callsignBuffer[CALLSIGN_BUFFER_SIZE] = {' ',' ',' ',' ',' ',' ',' ',' ','\0'};
+  uint8_t callsignLength = 0;
+  bool    reading       = true;
+
+  Serial.println();
+  Serial.println(F("Enter Callsign please:"));
+
+  while (reading) {  // run until ESC is received
+
+    if (Serial.available()) {
+      char received = Serial.read();
+    
+      switch (received) {
+        case 27:                            // ESC only when received first then exit programMode
+          if (callsignLength == 0) {         // empty buffer
+            reading = false;
+          }
+          break;
+        
+        case '\r':
+        case '\n':                          // ENTER?
+          if (callsignLength > 0) {
+                                            // Fill out buffer with spaces
+            while (callsignLength < CALLSIGN_BUFFER_SIZE) {
+              callsignBuffer[callsignLength++] = ' '; 
+            }
+            callsignBuffer[9] = '\0';        // Null-terminate
+            Callsign = callsignBuffer;       // Hand over to main program
+            Serial.println("\nCallsign entered: " + Callsign);
+          } else {
+            Serial.println();
+          }
+          reading = false;
+          break;
+
+        case 8:
+        case 127:                           // Backspace/delete
+          if (callsignLength > 0) {
+            callsignLength--;
+            Serial.print(F("\b \b"));
+          }
+          break;
+
+        case 'A' ... 'Z':
+        case '0' ... '9':
+          if (callsignLength < CALLSIGN_BUFFER_SIZE - 1) {
+            callsignBuffer[callsignLength++] = received;
+            Serial.print(received); // echo to screen
+          }
+          break;
+
+        case 'a' ... 'z':
+          received -= 'a' - 'A'; 
+          if (callsignLength < CALLSIGN_BUFFER_SIZE - 1) {
+            callsignBuffer[callsignLength++] = received;
+            Serial.print(received); // echo to screen
+          }
+          break;
+
+        default:
+          break;
+      }
+    }    
+  }
 }
